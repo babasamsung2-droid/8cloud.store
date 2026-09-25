@@ -1,0 +1,6 @@
+{
+  "name": "8cloud.store",
+  "description": "Ultra-modern, futuristic digital products store for instant-delivery Software Keys, AI Prompts, Creator Kits, Courses, and Web Dev Assets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
