@@ -9,10 +9,12 @@ import {
   Mail, 
   X, 
   Layers, 
-  Check 
+  Check,
+  Printer
 } from 'lucide-react';
 import { Order } from '../types';
 import { formatPrice } from '../utils/currency';
+import { printOrderReceipt } from '../utils/receiptGenerator';
 
 interface DigitalDeliveryModalProps {
   order: Order | null;
@@ -229,6 +231,15 @@ Thank you for choosing 8cloud.store.
             </div>
 
             <div className="flex items-center gap-3 w-full sm:w-auto">
+              <button
+                onClick={() => printOrderReceipt(order)}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold border border-white/10 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                title="Print official receipt or save as PDF"
+              >
+                <Printer className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Receipt / PDF</span>
+              </button>
+
               <button
                 onClick={() => {
                   onClose();

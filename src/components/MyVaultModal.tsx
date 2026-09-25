@@ -15,11 +15,21 @@ import {
   Zap, 
   ArrowRight,
   Star,
-  Crown
+  Crown,
+  Printer,
+  Receipt,
+  Activity,
+  Clock,
+  Loader2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import { Order, Product, CurrencyCode, User } from '../types';
+import { Order, Product, CurrencyCode, User, StoreSettings, FulfillmentStatus } from '../types';
 import { formatPrice } from '../utils/currency';
 import { ProductArtwork } from './ProductArtwork';
+import { InvoiceReceiptModal } from './InvoiceReceiptModal';
+import { OrderStatusTracker } from './OrderStatusTracker';
+import { printOrderReceipt, downloadHtmlInvoice } from '../utils/receiptGenerator';
 
 interface MyVaultModalProps {
   isOpen: boolean;
@@ -37,6 +47,7 @@ interface MyVaultModalProps {
   onSignOut?: () => void;
   onOpenLogin?: () => void;
   onOpenAdmin?: () => void;
+  storeSettings?: StoreSettings;
 }
 
 export const MyVaultModal: React.FC<MyVaultModalProps> = ({
@@ -55,9 +66,34 @@ export const MyVaultModal: React.FC<MyVaultModalProps> = ({
   onSignOut,
   onOpenLogin,
   onOpenAdmin,
+  storeSettings,
 }) => {
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist'>(initialTab);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<Order | null>(null);
+
+  // Real-time fulfillment status tracking state (persisted in local state per session)
+  const [orderStatuses, setOrderStatuses] = useState<Record<string, FulfillmentStatus>>({});
+  // Expanded tracking accordion map
+  const [expandedTrackers, setExpandedTrackers] = useState<Record<string, boolean>>({});
+
+  const getOrderStatus = (order: Order): FulfillmentStatus => {
+    return orderStatuses[order.id] || order.fulfillmentStatus || 'delivered';
+  };
+
+  const handleStatusChange = (orderId: string, newStatus: FulfillmentStatus) => {
+    setOrderStatuses((prev) => ({
+      ...prev,
+      [orderId]: newStatus,
+    }));
+  };
+
+  const toggleTracker = (orderId: string) => {
+    setExpandedTrackers((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
 
   // Sync if initialTab changes
   React.useEffect(() => {
@@ -249,123 +285,230 @@ This is a computer-generated tax invoice from 8cloud.store Key Delivery System.
           {/* TAB 1: ORDERS & LICENSES */}
           {activeTab === 'orders' && (
             orders.length > 0 ? (
-              orders.map((order) => (
-                <div
-                  key={order.id}
-                  className="p-5 rounded-2xl bg-zinc-900/50 border border-white/10 space-y-4"
-                >
-                  {/* Order Top Bar */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/5">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm font-bold text-white">
-                        #{order.id}
-                      </span>
-                      <span className="text-zinc-600">·</span>
-                      <span className="text-xs text-zinc-400 font-mono">
-                        {new Date(order.date).toLocaleDateString()}
-                      </span>
-                      <span className="text-zinc-600">·</span>
-                      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20">
-                        PAID ({order.paymentMethod.toUpperCase()})
-                      </span>
-                    </div>
+              orders.map((order) => {
+                const currentStatus = getOrderStatus(order);
+                const isTrackerOpen = !!expandedTrackers[order.id];
 
-                    <div className="flex items-center gap-3">
-                      <div className="text-xs font-mono font-bold text-cyan-400">
-                        {formatPrice(order.total, order.currency)}
-                      </div>
-                      <button
-                        onClick={() => handleDownloadInvoice(order)}
-                        className="text-xs px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10 flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                        <span>Invoice</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Items in this order */}
-                  <div className="space-y-3">
-                    <div className="text-[11px] font-mono text-zinc-500 uppercase">
-                      FULFILLED PRODUCTS ({order.items.length}):
-                    </div>
-                    {order.items.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 rounded-xl bg-zinc-950/80 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                      >
-                        <div>
-                          <div className="font-semibold text-white">
-                            {item.product.name} (x{item.quantity})
-                          </div>
-                          <div className="text-[11px] text-zinc-400">
-                            {item.product.deliveryFormat}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-zinc-300">
-                            {formatPrice(item.product.priceUSD * item.quantity, order.currency)}
+                return (
+                  <div
+                    key={order.id}
+                    className="p-5 rounded-2xl bg-zinc-900/50 border border-white/10 space-y-4"
+                  >
+                    {/* Order Top Bar */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-sm font-bold text-white">
+                          #{order.id}
+                        </span>
+                        <span className="text-zinc-600">·</span>
+                        <span className="text-xs text-zinc-400 font-mono">
+                          {new Date(order.date).toLocaleDateString()}
+                        </span>
+                        <span className="text-zinc-600">·</span>
+                        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20">
+                          PAID ({order.paymentMethod.toUpperCase()})
+                        </span>
+                        
+                        {/* Real-time Order Fulfillment Status Badge */}
+                        {currentStatus === 'pending' && (
+                          <span className="text-[10px] font-mono text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-500/40 flex items-center gap-1">
+                            <Clock className="w-3 h-3 animate-pulse text-amber-400" />
+                            <span>PENDING QUEUE</span>
                           </span>
+                        )}
+                        {currentStatus === 'processing' && (
+                          <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-500/40 flex items-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin text-cyan-400" />
+                            <span>PROCESSING (LIVE)</span>
+                          </span>
+                        )}
+                        {currentStatus === 'delivered' && (
+                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>DELIVERED</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-xs font-mono font-bold text-cyan-400 mr-1">
+                          {formatPrice(order.total, order.currency)}
                         </div>
-                      </div>
-                    ))}
-                  </div>
 
-                  {/* Licenses in this order */}
-                  {order.licenses && order.licenses.length > 0 && (
-                    <div className="space-y-2 pt-1">
-                      <div className="text-[11px] font-mono text-cyan-400 uppercase flex items-center gap-1">
-                        <KeyRound className="w-3 h-3" />
-                        <span>Allocated Cryptographic Keys:</span>
-                      </div>
+                        {/* Real-time Tracker Toggle Button */}
+                        <button
+                          onClick={() => toggleTracker(order.id)}
+                          className={`text-xs px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 transition-all cursor-pointer ${
+                            isTrackerOpen
+                              ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-sm shadow-cyan-500/20'
+                              : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border-white/10'
+                          }`}
+                          title="View and simulate real-time fulfillment progress"
+                        >
+                          <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                          <span className="font-semibold">Track Fulfillment</span>
+                          {isTrackerOpen ? (
+                            <ChevronUp className="w-3 h-3 text-zinc-400" />
+                          ) : (
+                            <ChevronDown className="w-3 h-3 text-zinc-400" />
+                          )}
+                        </button>
 
-                      <div className="space-y-2">
-                        {order.licenses.map((lic) => (
-                          <div
-                            key={lic.key}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between bg-zinc-950 p-2.5 rounded-xl border border-cyan-500/20 gap-2 font-mono text-xs"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-cyan-300 font-bold tracking-wider select-all">
-                                {lic.key}
-                              </span>
-                              <span className="text-[10px] text-zinc-500">
-                                ({lic.productName})
-                              </span>
-                            </div>
+                        {/* Printable Receipt / Tax Invoice Modal Trigger */}
+                        <button
+                          onClick={() => setSelectedInvoiceOrder(order)}
+                          className="text-xs px-2.5 py-1.5 rounded-xl bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-400/40 flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shadow-cyan-500/10"
+                          title="View printable tax receipt & invoice preview"
+                        >
+                          <Receipt className="w-3.5 h-3.5 text-cyan-400" />
+                          <span className="font-semibold">Receipt / PDF</span>
+                        </button>
 
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleCopy(lic.key)}
-                                className="px-2 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/10 text-[11px] flex items-center gap-1 cursor-pointer"
-                              >
-                                {copiedKey === lic.key ? (
-                                  <Check className="w-3 h-3 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3 h-3 text-zinc-400" />
-                                )}
-                                <span>{copiedKey === lic.key ? 'Copied' : 'Copy'}</span>
-                              </button>
+                        {/* Quick Print Utility */}
+                        <button
+                          onClick={() => printOrderReceipt(order, storeSettings)}
+                          className="text-xs p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10 flex items-center transition-colors cursor-pointer"
+                          title="Quick Print or Save as PDF in print dialog"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-zinc-300 hover:text-white" />
+                        </button>
 
-                              <button
-                                onClick={() => {
-                                  onClose();
-                                  onOpenValidatorWithKey(lic.key);
-                                }}
-                                className="px-2 py-1 rounded bg-cyan-950 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-400/30 text-[11px] flex items-center gap-1 cursor-pointer"
-                              >
-                                <KeyRound className="w-3 h-3 text-cyan-400" />
-                                <span>Inspect Key</span>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                        {/* Quick Download HTML Invoice */}
+                        <button
+                          onClick={() => downloadHtmlInvoice(order, storeSettings)}
+                          className="text-xs p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-white/10 flex items-center transition-colors cursor-pointer"
+                          title="Download standalone HTML invoice"
+                        >
+                          <Download className="w-3.5 h-3.5 text-cyan-400" />
+                        </button>
                       </div>
                     </div>
-                  )}
-                </div>
-              ))
+
+                    {/* Real-time Order Status Tracking Component */}
+                    {isTrackerOpen && (
+                      <div className="pt-1 animate-in fade-in duration-200">
+                        <OrderStatusTracker
+                          order={{ ...order, fulfillmentStatus: currentStatus }}
+                          onStatusChange={handleStatusChange}
+                        />
+                      </div>
+                    )}
+
+                    {/* Items in this order */}
+                    <div className="space-y-3">
+                      <div className="text-[11px] font-mono text-zinc-500 uppercase">
+                        ORDERED DIGITAL ASSETS ({order.items.length}):
+                      </div>
+                      {order.items.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 rounded-xl bg-zinc-950/80 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                        >
+                          <div>
+                            <div className="font-semibold text-white">
+                              {item.product.name} (x{item.quantity})
+                            </div>
+                            <div className="text-[11px] text-zinc-400">
+                              {item.product.deliveryFormat}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-zinc-300">
+                              {formatPrice(item.product.priceUSD * item.quantity, order.currency)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Licenses in this order (Protected when Pending/Processing) */}
+                    {currentStatus === 'pending' ? (
+                      <div className="p-3.5 rounded-xl bg-amber-950/20 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-amber-200 font-mono">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-amber-400 shrink-0 animate-pulse" />
+                          <span>Fulfillment queued: Digital keys & download links unlock immediately upon delivery.</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!isTrackerOpen) toggleTracker(order.id);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] cursor-pointer shrink-0"
+                        >
+                          Open Live Tracker →
+                        </button>
+                      </div>
+                    ) : currentStatus === 'processing' ? (
+                      <div className="p-3.5 rounded-xl bg-cyan-950/20 border border-cyan-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-cyan-200 font-mono">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 text-cyan-400 shrink-0 animate-spin" />
+                          <span>Minting ECDSA keys & preparing download package (Live progress above)...</span>
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!isTrackerOpen) toggleTracker(order.id);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[11px] cursor-pointer shrink-0"
+                        >
+                          View Tracker Pipeline →
+                        </button>
+                      </div>
+                    ) : (
+                      order.licenses && order.licenses.length > 0 && (
+                        <div className="space-y-2 pt-1">
+                          <div className="text-[11px] font-mono text-cyan-400 uppercase flex items-center gap-1">
+                            <KeyRound className="w-3 h-3" />
+                            <span>Allocated Cryptographic Keys:</span>
+                          </div>
+
+                          <div className="space-y-2">
+                            {order.licenses.map((lic) => (
+                              <div
+                                key={lic.key}
+                                className="flex flex-col sm:flex-row sm:items-center justify-between bg-zinc-950 p-2.5 rounded-xl border border-cyan-500/20 gap-2 font-mono text-xs"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-cyan-300 font-bold tracking-wider select-all">
+                                    {lic.key}
+                                  </span>
+                                  <span className="text-[10px] text-zinc-500">
+                                    ({lic.productName})
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleCopy(lic.key)}
+                                    className="px-2 py-1 rounded bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-white/10 text-[11px] flex items-center gap-1 cursor-pointer"
+                                  >
+                                    {copiedKey === lic.key ? (
+                                      <Check className="w-3 h-3 text-emerald-400" />
+                                    ) : (
+                                      <Copy className="w-3 h-3 text-zinc-400" />
+                                    )}
+                                    <span>{copiedKey === lic.key ? 'Copied' : 'Copy'}</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      onClose();
+                                      onOpenValidatorWithKey(lic.key);
+                                    }}
+                                    className="px-2 py-1 rounded bg-cyan-950 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-400/30 text-[11px] flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <KeyRound className="w-3 h-3 text-cyan-400" />
+                                    <span>Inspect Key</span>
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                );
+              })
             ) : (
               <div className="py-20 text-center space-y-3">
                 <ShoppingBag className="w-12 h-12 text-zinc-700 mx-auto" />
@@ -495,6 +638,14 @@ This is a computer-generated tax invoice from 8cloud.store Key Delivery System.
         </div>
 
       </div>
+
+      {/* Printable PDF-Style Tax Receipt & Invoice Modal */}
+      <InvoiceReceiptModal
+        isOpen={!!selectedInvoiceOrder}
+        order={selectedInvoiceOrder}
+        onClose={() => setSelectedInvoiceOrder(null)}
+        storeSettings={storeSettings}
+      />
     </div>
   );
 };

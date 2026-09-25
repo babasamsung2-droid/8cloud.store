@@ -16,9 +16,14 @@ import { CategoryId } from '../types';
 interface FooterProps {
   onSelectCategory: (c: CategoryId) => void;
   onOpenValidator: () => void;
+  onOpenAdminLogin?: () => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onSelectCategory, onOpenValidator }) => {
+export const Footer: React.FC<FooterProps> = ({ 
+  onSelectCategory, 
+  onOpenValidator,
+  onOpenAdminLogin 
+}) => {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
   const [newsletterEmail, setNewsletterEmail] = useState('');
   const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
@@ -267,8 +272,24 @@ export const Footer: React.FC<FooterProps> = ({ onSelectCategory, onOpenValidato
 
         {/* Bottom Bar: Copyright & Payment Icons */}
         <div className="mt-12 pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
-          <div>
-            © {new Date().getFullYear()} 8cloud.store Inc. All rights reserved. Zero-latency digital delivery.
+          <div className="flex flex-wrap items-center gap-3">
+            <span>
+              © {new Date().getFullYear()} 8cloud.store Inc. All rights reserved. Zero-latency digital delivery.
+            </span>
+            {onOpenAdminLogin && (
+              <>
+                <span className="text-zinc-700 hidden sm:inline">·</span>
+                <button
+                  type="button"
+                  onClick={onOpenAdminLogin}
+                  className="text-[10px] text-zinc-600 hover:text-amber-400 font-mono transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Store Administrator Portal"
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>Admin Access</span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Payment rails badge */}

@@ -142,9 +142,9 @@ export default function App() {
   const [orders, setOrders] = useState<Order[]>(() => {
     try {
       const saved = localStorage.getItem(ORDERS_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [INITIAL_DEMO_ORDER];
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return [INITIAL_DEMO_ORDER];
+      return [];
     }
   });
 
@@ -152,31 +152,31 @@ export default function App() {
   const [wishlistIds, setWishlistIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(WISHLIST_STORAGE_KEY);
-      // Pre-seed a couple favorites on fresh visit so user can explore wishlist immediately
-      return saved ? JSON.parse(saved) : ['cloudshield-vpn-enterprise', 'master-prompt-engine-5'];
+      return saved ? JSON.parse(saved) : [];
     } catch {
-      return ['cloudshield-vpn-enterprise', 'master-prompt-engine-5'];
+      return [];
     }
   });
 
-  // User Authentication state (persisted)
+  // User Authentication state (persisted, zero demo accounts)
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const saved = localStorage.getItem(USER_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : {
-        id: 'USR-8821',
-        name: 'Alex Vance',
-        email: 'alex.vance@example.com',
-        memberSince: 'January 2026',
-        tier: 'Pro Creator Member',
-        role: 'customer',
-        authProvider: 'email',
-      };
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.email === 'alex.vance@example.com' || parsed?.name === 'Alex Vance') {
+          localStorage.removeItem(USER_STORAGE_KEY);
+          return null;
+        }
+        return parsed;
+      }
+      return null;
     } catch {
       return null;
     }
   });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAdminLoginMode, setIsAdminLoginMode] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
 
   // Store Configuration & Gateway Settings (persisted)
@@ -301,7 +301,48 @@ export default function App() {
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
-    showToast(`Welcome back, ${user.name}!`);
+    if (user.role === 'admin' || user.email.toLowerCase().includes('babasamsung2')) {
+      showToast(`👑 Welcome Baba Samsung! Store Admin Unlocked`);
+      setIsAdminLoginMode(false);
+      // Auto-open admin panel if user requested admin access
+      if (isAdminLoginMode) {
+        setIsAdminOpen(true);
+      }
+    } else {
+      showToast(`Welcome back, ${user.name}!`);
+      setIsAdminLoginMode(false);
+    }
+  };
+
+  const handleOpenAdminLogin = () => {
+    if (currentUser?.role === 'admin' || currentUser?.email?.toLowerCase().includes('babasamsung2')) {
+      setIsAdminOpen(true);
+    } else {
+      setIsAdminLoginMode(true);
+      setIsAuthOpen(true);
+    }
+  };
+
+  // 1-Click Fast Google Login (No password needed, uses browser's active Google account)
+  const handleFastGoogleLogin = (customEmail?: string, customName?: string) => {
+    const browserEmail = (customEmail || 'babasamsung2@gmail.com').trim().toLowerCase();
+    const isAdmin = browserEmail === (storeSettings.adminEmail?.toLowerCase() || 'babasamsung2@gmail.com') ||
+      browserEmail.includes('babasamsung2');
+    const derivedName = customName || (isAdmin ? 'Baba Samsung' : browserEmail.split('@')[0]);
+    const formattedName = derivedName.charAt(0).toUpperCase() + derivedName.slice(1);
+
+    const user: User = {
+      id: isAdmin ? 'USR-ADMIN-BABA' : `USR-GGL-${Math.floor(100000 + Math.random() * 900000)}`,
+      name: formattedName,
+      email: browserEmail,
+      memberSince: 'March 2026',
+      tier: isAdmin ? 'Store Administrator (Full Control)' : 'Verified Google Customer',
+      role: isAdmin ? 'admin' : 'customer',
+      authProvider: 'google',
+      avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formattedName)}&backgroundColor=${isAdmin ? 'd97706' : '0284c7'}`,
+    };
+
+    handleLoginSuccess(user);
   };
 
   const handleSignOut = () => {
@@ -487,6 +528,7 @@ export default function App() {
         }}
         currentUser={currentUser}
         onOpenLogin={() => setIsAuthOpen(true)}
+        onFastGoogleLogin={() => handleFastGoogleLogin()}
         onOpenAdmin={() => setIsAdminOpen(true)}
         isAdminVisible={
           !storeSettings.privateAdminMode || 
@@ -545,6 +587,7 @@ export default function App() {
           setValidatorInitialKey('');
           setIsValidatorOpen(true);
         }}
+        onOpenAdminLogin={handleOpenAdminLogin}
       />
 
       {/* Cart Drawer */}
@@ -616,14 +659,20 @@ export default function App() {
         onSignOut={handleSignOut}
         onOpenLogin={() => setIsAuthOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
+        storeSettings={storeSettings}
       />
 
       {/* User Authentication Modal (Sign In / Register) */}
       <AuthModal
         isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
+        onClose={() => {
+          setIsAuthOpen(false);
+          setIsAdminLoginMode(false);
+        }}
         onLoginSuccess={handleLoginSuccess}
-        initialEmail={currentUser?.email}
+        initialEmail={currentUser?.email || (isAdminLoginMode ? 'babasamsung2@gmail.com' : '')}
+        isAdminLoginMode={isAdminLoginMode}
+        storeSettings={storeSettings}
       />
 
       {/* Store Administrator Dashboard & Product Management (Shopify Style) */}

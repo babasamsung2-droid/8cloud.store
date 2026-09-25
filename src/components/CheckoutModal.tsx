@@ -209,6 +209,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           currency,
           paymentMethod: 'razorpay',
           transactionRef: payId,
+          fulfillmentStatus: 'delivered',
           licenses,
           downloadPayloads,
         };
@@ -361,6 +362,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           currency,
           paymentMethod,
           transactionRef: txRef,
+          fulfillmentStatus: 'delivered',
           licenses,
           downloadPayloads,
         };

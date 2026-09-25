@@ -111,6 +111,15 @@ export interface StoreSettings {
   storeCurrency: CurrencyCode;
 }
 
+export type FulfillmentStatus = 'pending' | 'processing' | 'delivered';
+
+export interface FulfillmentEvent {
+  timestamp: string;
+  step: string;
+  detail: string;
+  status: 'completed' | 'in_progress' | 'waiting';
+}
+
 export interface Order {
   id: string;
   date: string;
@@ -123,6 +132,7 @@ export interface Order {
   currency: CurrencyCode;
   paymentMethod: PaymentMethod;
   transactionRef: string;
+  fulfillmentStatus?: FulfillmentStatus;
   licenses: IssuedLicense[];
   downloadPayloads: {
     productId: string;
