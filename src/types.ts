@@ -18,6 +18,7 @@ export interface Product {
   longDescription: string;
   priceUSD: number;
   originalPriceUSD: number;
+  costPerItem?: number;
   categoryId: CategoryId;
   categoryName: string;
   rating: number;
@@ -35,6 +36,18 @@ export interface Product {
   demoUrl?: string;
   gradientTheme: string; // Tailwind gradient classes
   iconType: string;
+  status?: 'active' | 'draft';
+  stock?: number;
+  salesCount?: number;
+  sku?: string;
+  ebookDetails?: {
+    format?: string;
+    pages?: number;
+    language?: string;
+    author?: string;
+    isbn?: string;
+  };
+  createdAt?: string;
 }
 
 export interface Category {
@@ -60,6 +73,16 @@ export interface User {
   avatarUrl?: string;
   memberSince: string;
   tier: string;
+  role?: 'admin' | 'customer';
+  authProvider?: 'google' | 'email';
+}
+
+export interface Coupon {
+  code: string;
+  discountPercent?: number;
+  discountAmountUSD?: number;
+  description: string;
+  active: boolean;
 }
 
 export interface IssuedLicense {
@@ -74,6 +97,20 @@ export interface IssuedLicense {
   activatedMachines?: string[];
 }
 
+export type PaymentMethod = 'razorpay' | 'upi' | 'card' | 'netbanking' | 'crypto' | 'gpay';
+
+export interface StoreSettings {
+  adminEmail: string;
+  adminPin: string;
+  privateAdminMode: boolean; // if true, hides Admin buttons from public storefront
+  subdomainEnabled: boolean; // allows admin.domain.com routing
+  razorpayKeyId: string;
+  razorpayKeySecret?: string;
+  razorpayTestMode: boolean;
+  storeName: string;
+  storeCurrency: CurrencyCode;
+}
+
 export interface Order {
   id: string;
   date: string;
@@ -84,7 +121,7 @@ export interface Order {
   discount: number;
   total: number;
   currency: CurrencyCode;
-  paymentMethod: 'upi' | 'card' | 'netbanking' | 'crypto';
+  paymentMethod: PaymentMethod;
   transactionRef: string;
   licenses: IssuedLicense[];
   downloadPayloads: {

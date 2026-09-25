@@ -14,7 +14,8 @@ import {
   Trash2, 
   Zap, 
   ArrowRight,
-  Star
+  Star,
+  Crown
 } from 'lucide-react';
 import { Order, Product, CurrencyCode, User } from '../types';
 import { formatPrice } from '../utils/currency';
@@ -35,6 +36,7 @@ interface MyVaultModalProps {
   currentUser?: User | null;
   onSignOut?: () => void;
   onOpenLogin?: () => void;
+  onOpenAdmin?: () => void;
 }
 
 export const MyVaultModal: React.FC<MyVaultModalProps> = ({
@@ -52,6 +54,7 @@ export const MyVaultModal: React.FC<MyVaultModalProps> = ({
   currentUser,
   onSignOut,
   onOpenLogin,
+  onOpenAdmin,
 }) => {
   const [activeTab, setActiveTab] = useState<'orders' | 'wishlist'>(initialTab);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -162,6 +165,20 @@ This is a computer-generated tax invoice from 8cloud.store Key Delivery System.
           )}
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
+            {onOpenAdmin && (currentUser?.role === 'admin' || currentUser?.email?.toLowerCase().includes('babasamsung2')) && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenAdmin();
+                }}
+                className="px-3 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Crown className="w-3 h-3 text-amber-400" />
+                <span>Admin Panel</span>
+              </button>
+            )}
+
             {currentUser ? (
               onSignOut && (
                 <button

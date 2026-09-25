@@ -15,16 +15,33 @@ import { DigitalDeliveryModal } from './components/DigitalDeliveryModal';
 import { LicenseKeyValidatorModal } from './components/LicenseKeyValidatorModal';
 import { MyVaultModal } from './components/MyVaultModal';
 import { AuthModal } from './components/AuthModal';
+import { AdminPanel } from './components/AdminPanel';
+import { SEOHead } from './components/SEOHead';
 import { Footer } from './components/Footer';
 import { PRODUCTS } from './data/products';
-import { Product, CartItem, Order, CategoryId, CurrencyCode, User } from './types';
+import { Product, CartItem, Order, CategoryId, CurrencyCode, User, StoreSettings } from './types';
 import { getStoredLicenses, saveLicense } from './utils/licenseGenerator';
+import { getInitialCurrency, fetchGeoCurrency, CURRENCY_STORAGE_KEY } from './utils/currency';
 import { Check, ShoppingBag } from 'lucide-react';
 
+const PRODUCTS_STORAGE_KEY = '8cloud_admin_products_v1';
 const CART_STORAGE_KEY = '8cloud_cart_v1';
 const ORDERS_STORAGE_KEY = '8cloud_orders_v1';
 const WISHLIST_STORAGE_KEY = '8cloud_wishlist_v1';
 const USER_STORAGE_KEY = '8cloud_current_user_v1';
+const SETTINGS_STORAGE_KEY = '8cloud_store_settings_v1';
+
+const DEFAULT_SETTINGS: StoreSettings = {
+  adminEmail: 'babasamsung2@gmail.com',
+  adminPin: '8821',
+  privateAdminMode: true, // Default to true: Admin button hidden from public storefront
+  subdomainEnabled: true,
+  razorpayKeyId: 'rzp_test_8cloudStoreDemo',
+  razorpayKeySecret: '',
+  razorpayTestMode: true,
+  storeName: '8cloud.store',
+  storeCurrency: 'INR',
+};
 
 // Seed initial sample order for first-time visitors
 const INITIAL_DEMO_ORDER: Order = {
@@ -71,8 +88,45 @@ const INITIAL_DEMO_ORDER: Order = {
 
 export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryId | 'all'>('all');
-  const [currency, setCurrency] = useState<CurrencyCode>('USD');
   
+  // Location-based Currency state: Defaults to INR in India / fallback, or USD ($) for other countries
+  const [currency, setCurrency] = useState<CurrencyCode>(getInitialCurrency);
+
+  // Background Geolocation Detection: Automatically detects country on first visit if no manual preference is saved
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CURRENCY_STORAGE_KEY);
+      if (!saved) {
+        fetchGeoCurrency().then((detectedCurrency) => {
+          if (detectedCurrency) {
+            setCurrency(detectedCurrency);
+          }
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleChangeCurrency = (newCurrency: CurrencyCode) => {
+    setCurrency(newCurrency);
+    try {
+      localStorage.setItem(CURRENCY_STORAGE_KEY, newCurrency);
+    } catch (e) {
+      console.error('Failed to save currency preference', e);
+    }
+  };
+  
+  // Dynamic Products Catalog state (persisted so admin updates stay live across refreshes)
+  const [products, setProducts] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem(PRODUCTS_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : PRODUCTS;
+    } catch {
+      return PRODUCTS;
+    }
+  });
+
   // Cart state
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -115,12 +169,25 @@ export default function App() {
         email: 'alex.vance@example.com',
         memberSince: 'January 2026',
         tier: 'Pro Creator Member',
+        role: 'customer',
+        authProvider: 'email',
       };
     } catch {
       return null;
     }
   });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+
+  // Store Configuration & Gateway Settings (persisted)
+  const [storeSettings, setStoreSettings] = useState<StoreSettings>(() => {
+    try {
+      const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
+      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
 
   // Modal states
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -135,6 +202,57 @@ export default function App() {
 
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Persist store settings to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(storeSettings));
+    } catch (e) {
+      console.error('Failed to save store settings to localStorage', e);
+    }
+  }, [storeSettings]);
+
+  // Subdomain & Secret Access Route Detection
+  const isSubdomainOrSecretRoute = typeof window !== 'undefined' && (
+    window.location.hostname.toLowerCase().startsWith('admin.') ||
+    window.location.pathname.toLowerCase().startsWith('/admin') ||
+    window.location.search.toLowerCase().includes('admin=true') ||
+    window.location.search.toLowerCase().includes('admin=portal') ||
+    window.location.hash.toLowerCase() === '#admin'
+  );
+
+  // Auto-open admin panel if visiting admin subdomain or secret path
+  useEffect(() => {
+    if (isSubdomainOrSecretRoute) {
+      setIsAdminOpen(true);
+    }
+  }, [isSubdomainOrSecretRoute]);
+
+  // Secret keyboard shortcut to open Admin Panel (Ctrl + Shift + A or Cmd + Shift + A)
+  useEffect(() => {
+    const handleKeyShortcut = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
+        e.preventDefault();
+        setIsAdminOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyShortcut);
+    return () => window.removeEventListener('keydown', handleKeyShortcut);
+  }, []);
+
+  const handleSaveSettings = (updatedSettings: StoreSettings) => {
+    setStoreSettings(updatedSettings);
+    showToast('Store & Gateway settings updated successfully!');
+  };
+
+  // Persist products to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products));
+    } catch (e) {
+      console.error('Failed to save products to localStorage', e);
+    }
+  }, [products]);
 
   // Persist cart to localStorage
   useEffect(() => {
@@ -191,6 +309,35 @@ export default function App() {
     showToast('Signed out of 8cloud.store');
   };
 
+  // Admin Product Management Handlers
+  const handleSaveProduct = (updatedProduct: Product) => {
+    setProducts((prev) => {
+      const idx = prev.findIndex((p) => p.id === updatedProduct.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = updatedProduct;
+        return next;
+      } else {
+        return [updatedProduct, ...prev];
+      }
+    });
+    showToast(`Product "${updatedProduct.name}" saved to store!`);
+  };
+
+  const handleDeleteProduct = (productId: string) => {
+    const prod = products.find((p) => p.id === productId);
+    setProducts((prev) => prev.filter((p) => p.id !== productId));
+    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+    setWishlistIds((prev) => prev.filter((id) => id !== productId));
+    showToast(`Product "${prod?.name || productId}" deleted from store`);
+  };
+
+  const handleResetCatalog = () => {
+    setProducts(PRODUCTS);
+    localStorage.removeItem(PRODUCTS_STORAGE_KEY);
+    showToast('Store catalog restored to default inventory');
+  };
+
   // Toggle wishlist handler
   const handleToggleWishlist = (product: Product) => {
     setWishlistIds((prev) => {
@@ -208,7 +355,7 @@ export default function App() {
   // Remove from wishlist directly
   const handleRemoveFromWishlist = (productId: string) => {
     setWishlistIds((prev) => prev.filter((id) => id !== productId));
-    const prod = PRODUCTS.find((p) => p.id === productId);
+    const prod = products.find((p) => p.id === productId);
     if (prod) {
       showToast(`Removed "${prod.name}" from Wishlist`);
     }
@@ -298,11 +445,18 @@ export default function App() {
   };
 
   const totalCartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const wishlistProducts = PRODUCTS.filter((p) => wishlistIds.includes(p.id));
+  const wishlistProducts = products.filter((p) => wishlistIds.includes(p.id));
 
   return (
     <div className="min-h-screen bg-[#030305] text-zinc-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
       
+      {/* Dynamic SEO Meta Tag & Social Graph Generator */}
+      <SEOHead
+        selectedCategory={selectedCategory}
+        selectedProduct={selectedProduct}
+        currency={currency}
+      />
+
       {/* Top sticky glassmorphic navigation */}
       <Header
         selectedCategory={selectedCategory}
@@ -313,7 +467,7 @@ export default function App() {
           }
         }}
         currency={currency}
-        onChangeCurrency={setCurrency}
+        onChangeCurrency={handleChangeCurrency}
         cartCount={totalCartCount}
         onOpenCart={() => setIsCartOpen(true)}
         onOpenValidator={() => {
@@ -333,6 +487,13 @@ export default function App() {
         }}
         currentUser={currentUser}
         onOpenLogin={() => setIsAuthOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
+        isAdminVisible={
+          !storeSettings.privateAdminMode || 
+          currentUser?.role === 'admin' || 
+          currentUser?.email?.toLowerCase().includes('babasamsung2') || 
+          isSubdomainOrSecretRoute
+        }
       />
 
       {/* Main Content Area */}
@@ -361,7 +522,7 @@ export default function App() {
 
         {/* 4-Column Product Catalog with Filters */}
         <ProductGrid
-          products={PRODUCTS}
+          products={products}
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
           currency={currency}
@@ -454,6 +615,7 @@ export default function App() {
         currentUser={currentUser}
         onSignOut={handleSignOut}
         onOpenLogin={() => setIsAuthOpen(true)}
+        onOpenAdmin={() => setIsAdminOpen(true)}
       />
 
       {/* User Authentication Modal (Sign In / Register) */}
@@ -462,6 +624,22 @@ export default function App() {
         onClose={() => setIsAuthOpen(false)}
         onLoginSuccess={handleLoginSuccess}
         initialEmail={currentUser?.email}
+      />
+
+      {/* Store Administrator Dashboard & Product Management (Shopify Style) */}
+      <AdminPanel
+        isOpen={isAdminOpen}
+        onClose={() => setIsAdminOpen(false)}
+        products={products}
+        orders={orders}
+        onSaveProduct={handleSaveProduct}
+        onDeleteProduct={handleDeleteProduct}
+        onResetCatalog={handleResetCatalog}
+        currentUser={currentUser}
+        currency={currency}
+        storeSettings={storeSettings}
+        onSaveSettings={handleSaveSettings}
+        onOpenLogin={() => setIsAuthOpen(true)}
       />
 
       {/* Transient Micro-Toast Notification */}

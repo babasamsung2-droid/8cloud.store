@@ -10,7 +10,8 @@ import {
   ShieldCheck,
   ChevronDown,
   Heart,
-  User as UserIcon
+  User as UserIcon,
+  Crown
 } from 'lucide-react';
 import { CurrencyCode, Product, CategoryId, User } from '../types';
 import { CURRENCY_RATES, formatPrice } from '../utils/currency';
@@ -31,6 +32,8 @@ interface HeaderProps {
   onOpenWishlist?: () => void;
   currentUser?: User | null;
   onOpenLogin?: () => void;
+  onOpenAdmin?: () => void;
+  isAdminVisible?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -48,6 +51,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenWishlist,
   currentUser,
   onOpenLogin,
+  onOpenAdmin,
+  isAdminVisible = true,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -96,6 +101,16 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden sm:inline text-zinc-500">Global Cloud CDN Fulfillment</span>
         </div>
         <div className="flex items-center gap-4">
+          {onOpenAdmin && isAdminVisible && (
+            <button
+              onClick={onOpenAdmin}
+              className="flex items-center gap-1.5 text-amber-300 hover:text-amber-200 transition-colors cursor-pointer font-semibold"
+            >
+              <Crown className="w-3 h-3 text-amber-400" />
+              <span>Admin Panel</span>
+            </button>
+          )}
+          <span className="text-zinc-700 hidden sm:inline">|</span>
           <button 
             onClick={onOpenValidator}
             className="flex items-center gap-1.5 text-zinc-400 hover:text-cyan-400 transition-colors cursor-pointer"
@@ -221,6 +236,18 @@ export const Header: React.FC<HeaderProps> = ({
               </select>
               <ChevronDown className="w-3 h-3 text-zinc-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
+
+            {/* Admin Panel Quick Access */}
+            {onOpenAdmin && isAdminVisible && (
+              <button
+                onClick={onOpenAdmin}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg text-xs font-semibold transition-all cursor-pointer shadow-sm shadow-amber-500/10"
+                title="Store Admin Panel (Shopify Style)"
+              >
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Admin</span>
+              </button>
+            )}
 
             {/* User Account / Sign In */}
             {currentUser ? (
@@ -352,6 +379,22 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             </div>
             
+            {/* Admin Panel for Mobile */}
+            {onOpenAdmin && isAdminVisible && (
+              <button
+                onClick={() => { onOpenAdmin(); setMobileMenuOpen(false); }}
+                className="w-full text-left text-xs py-2 px-3 rounded-lg bg-amber-500/10 text-amber-300 border border-amber-500/30 flex items-center justify-between cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-amber-400" />
+                  <span className="font-semibold">Store Admin Dashboard</span>
+                </div>
+                <span className="text-[9px] font-mono bg-amber-400/20 px-1.5 py-0.5 rounded text-amber-200">
+                  Shopify Engine
+                </span>
+              </button>
+            )}
+
             <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs text-zinc-400">
               {currentUser ? (
                 <button onClick={() => { onOpenVault(); setMobileMenuOpen(false); }} className="text-cyan-400 flex items-center gap-1.5 cursor-pointer">
