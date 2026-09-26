@@ -143,9 +143,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   if (!isOpen) return null;
 
+  // Admin panel is strictly authorized ONLY for babasamsung2@gmail.com (or via Master PIN)
   const isAuthorizedAdmin = 
-    currentUser?.role === 'admin' || 
-    currentUser?.email?.toLowerCase().includes('babasamsung2') ||
+    currentUser?.email?.trim().toLowerCase() === 'babasamsung2@gmail.com' ||
     isPinUnlocked;
 
   const handleVerifyPin = (e: React.FormEvent) => {
@@ -196,8 +196,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
             <h2 className="text-lg font-bold text-white tracking-tight">8cloud Store Administrator Access</h2>
             <p className="text-xs text-zinc-400 max-w-xs mx-auto">
-              This backend is strictly private. Sign in with the administrator Google account or enter your Master PIN.
+              This backend is strictly private. Admin panel is enabled <strong>ONLY</strong> when signed in as <span className="text-amber-400 font-mono">babasamsung2@gmail.com</span>.
             </p>
+            {currentUser && currentUser.email.toLowerCase().trim() !== 'babasamsung2@gmail.com' && (
+              <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs">
+                Currently signed in as: <strong>{currentUser.email}</strong>. Admin privileges are restricted to babasamsung2@gmail.com.
+              </div>
+            )}
           </div>
 
           {/* Option 1: Google Login as Admin */}

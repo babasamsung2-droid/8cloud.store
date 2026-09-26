@@ -51,7 +51,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [customerPhone, setCustomerPhone] = useState('9876543210');
   
   // Stored Razorpay settings
-  const [razorpayKeyId, setRazorpayKeyId] = useState('rzp_test_8cloudStoreDemo');
+  const [razorpayKeyId, setRazorpayKeyId] = useState(
+    (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || 'rzp_test_8cloudStoreDemo'
+  );
   const [razorpayIsTestMode, setRazorpayIsTestMode] = useState(true);
 
   // Load configured Razorpay key from admin settings

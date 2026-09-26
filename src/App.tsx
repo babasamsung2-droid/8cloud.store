@@ -36,7 +36,7 @@ const DEFAULT_SETTINGS: StoreSettings = {
   adminPin: '8821',
   privateAdminMode: true, // Default to true: Admin button hidden from public storefront
   subdomainEnabled: true,
-  razorpayKeyId: 'rzp_test_8cloudStoreDemo',
+  razorpayKeyId: (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || 'rzp_test_8cloudStoreDemo',
   razorpayKeySecret: '',
   razorpayTestMode: true,
   storeName: '8cloud.store',
@@ -300,22 +300,28 @@ export default function App() {
   };
 
   const handleLoginSuccess = (user: User) => {
-    setCurrentUser(user);
-    if (user.role === 'admin' || user.email.toLowerCase().includes('babasamsung2')) {
-      showToast(`👑 Welcome Baba Samsung! Store Admin Unlocked`);
+    const isAdmin = user.email.toLowerCase().trim() === 'babasamsung2@gmail.com';
+    const updatedUser: User = {
+      ...user,
+      role: isAdmin ? 'admin' : 'customer',
+      tier: isAdmin ? 'Store Administrator (Full Control)' : 'Verified Member',
+    };
+    setCurrentUser(updatedUser);
+    if (isAdmin) {
+      showToast(`👑 Welcome Baba Samsung! Store Admin Enabled`);
       setIsAdminLoginMode(false);
       // Auto-open admin panel if user requested admin access
       if (isAdminLoginMode) {
         setIsAdminOpen(true);
       }
     } else {
-      showToast(`Welcome back, ${user.name}!`);
+      showToast(`Welcome back, ${updatedUser.name}!`);
       setIsAdminLoginMode(false);
     }
   };
 
   const handleOpenAdminLogin = () => {
-    if (currentUser?.role === 'admin' || currentUser?.email?.toLowerCase().includes('babasamsung2')) {
+    if (currentUser?.email?.toLowerCase().trim() === 'babasamsung2@gmail.com') {
       setIsAdminOpen(true);
     } else {
       setIsAdminLoginMode(true);
@@ -323,12 +329,11 @@ export default function App() {
     }
   };
 
-  // 1-Click Fast Google Login (No password needed, uses browser's active Google account)
+  // 1-Click Fast Google Login
   const handleFastGoogleLogin = (customEmail?: string, customName?: string) => {
-    const browserEmail = (customEmail || 'babasamsung2@gmail.com').trim().toLowerCase();
-    const isAdmin = browserEmail === (storeSettings.adminEmail?.toLowerCase() || 'babasamsung2@gmail.com') ||
-      browserEmail.includes('babasamsung2');
-    const derivedName = customName || (isAdmin ? 'Baba Samsung' : browserEmail.split('@')[0]);
+    const browserEmail = (customEmail || 'customer@gmail.com').trim().toLowerCase();
+    const isAdmin = browserEmail === 'babasamsung2@gmail.com';
+    const derivedName = customName || (isAdmin ? 'Baba Samsung' : (browserEmail.split('@')[0]));
     const formattedName = derivedName.charAt(0).toUpperCase() + derivedName.slice(1);
 
     const user: User = {
@@ -530,12 +535,7 @@ export default function App() {
         onOpenLogin={() => setIsAuthOpen(true)}
         onFastGoogleLogin={() => handleFastGoogleLogin()}
         onOpenAdmin={() => setIsAdminOpen(true)}
-        isAdminVisible={
-          !storeSettings.privateAdminMode || 
-          currentUser?.role === 'admin' || 
-          currentUser?.email?.toLowerCase().includes('babasamsung2') || 
-          isSubdomainOrSecretRoute
-        }
+        isAdminVisible={currentUser?.email?.trim().toLowerCase() === 'babasamsung2@gmail.com'}
       />
 
       {/* Main Content Area */}
@@ -587,6 +587,8 @@ export default function App() {
           setValidatorInitialKey('');
           setIsValidatorOpen(true);
         }}
+        currentUser={currentUser}
+        onOpenAdmin={() => setIsAdminOpen(true)}
         onOpenAdminLogin={handleOpenAdminLogin}
       />
 

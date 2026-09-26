@@ -61,7 +61,8 @@ export const Header: React.FC<HeaderProps> = ({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const isBabaAdmin = currentUser?.role === 'admin' || currentUser?.email?.toLowerCase().includes('babasamsung2');
+  // Admin button tabhi enable hoga jab babasamsung2@gmail.com se login ho
+  const isBabaAdmin = currentUser?.email?.trim().toLowerCase() === 'babasamsung2@gmail.com';
 
   // Filter products for instant autocomplete
   const searchResults = searchQuery.trim().length > 1

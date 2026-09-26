@@ -11,17 +11,21 @@ import {
   Lock 
 } from 'lucide-react';
 import { FAQ_ITEMS } from '../data/products';
-import { CategoryId } from '../types';
+import { CategoryId, User } from '../types';
 
 interface FooterProps {
   onSelectCategory: (c: CategoryId) => void;
   onOpenValidator: () => void;
+  currentUser?: User | null;
+  onOpenAdmin?: () => void;
   onOpenAdminLogin?: () => void;
 }
 
 export const Footer: React.FC<FooterProps> = ({ 
   onSelectCategory, 
   onOpenValidator,
+  currentUser,
+  onOpenAdmin,
   onOpenAdminLogin 
 }) => {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
@@ -276,17 +280,18 @@ export const Footer: React.FC<FooterProps> = ({
             <span>
               © {new Date().getFullYear()} 8cloud.store Inc. All rights reserved. Zero-latency digital delivery.
             </span>
-            {onOpenAdminLogin && (
+            {/* Admin button strictly visible only when logged in as babasamsung2@gmail.com */}
+            {currentUser?.email?.toLowerCase().trim() === 'babasamsung2@gmail.com' && onOpenAdmin && (
               <>
                 <span className="text-zinc-700 hidden sm:inline">·</span>
                 <button
                   type="button"
-                  onClick={onOpenAdminLogin}
-                  className="text-[10px] text-zinc-600 hover:text-amber-400 font-mono transition-colors flex items-center gap-1 cursor-pointer"
-                  title="Store Administrator Portal"
+                  onClick={onOpenAdmin}
+                  className="text-[10px] text-amber-400 hover:text-amber-300 font-mono transition-colors flex items-center gap-1 cursor-pointer bg-amber-400/10 hover:bg-amber-400/20 px-2 py-0.5 rounded border border-amber-400/30"
+                  title="Store Administrator Portal (babasamsung2@gmail.com)"
                 >
-                  <Lock className="w-2.5 h-2.5" />
-                  <span>Admin Access</span>
+                  <Lock className="w-2.5 h-2.5 text-amber-400" />
+                  <span>Admin Panel (Unlocked)</span>
                 </button>
               </>
             )}

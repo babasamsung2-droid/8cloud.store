@@ -201,7 +201,7 @@ This is a computer-generated tax invoice from 8cloud.store Key Delivery System.
           )}
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
-            {onOpenAdmin && (currentUser?.role === 'admin' || currentUser?.email?.toLowerCase().includes('babasamsung2')) && (
+            {onOpenAdmin && currentUser?.email?.trim().toLowerCase() === 'babasamsung2@gmail.com' && (
               <button
                 type="button"
                 onClick={() => {
