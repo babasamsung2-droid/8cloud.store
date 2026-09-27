@@ -31,6 +31,7 @@ interface CheckoutModalProps {
   couponCode?: string;
   onOrderCompleted: (order: Order) => void;
   currentUser?: User | null;
+  onOpenLogin?: () => void;
 }
 
 type PaymentTab = 'razorpay' | 'upi' | 'card' | 'gpay' | 'netbanking' | 'crypto';
@@ -44,10 +45,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   couponCode: initialCoupon,
   onOrderCompleted,
   currentUser,
+  onOpenLogin,
 }) => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentTab>('razorpay');
-  const [customerName, setCustomerName] = useState(currentUser?.name || 'Alex Vance');
-  const [customerEmail, setCustomerEmail] = useState(currentUser?.email || 'alex.vance@example.com');
+  const [customerName, setCustomerName] = useState(currentUser?.name || '');
+  const [customerEmail, setCustomerEmail] = useState(currentUser?.email || '');
   const [customerPhone, setCustomerPhone] = useState('9876543210');
   
   // Stored Razorpay settings
@@ -161,6 +163,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      if (onOpenLogin) onOpenLogin();
+      return;
+    }
     setIsProcessing(true);
 
     if (paymentMethod === 'razorpay') {
@@ -427,6 +433,53 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         ) : (
           <form onSubmit={handleSubmitPayment} className="p-6 space-y-6">
             
+            {/* Login Required Notice for Non-logged-in customers */}
+            {!currentUser && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-zinc-900 border border-amber-500/30 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                    <Lock className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider font-mono">
+                      Account Required to Finalize Order
+                    </h4>
+                    <p className="text-xs text-zinc-300">
+                      Digital assets and cryptographic license keys must be issued to a verified account. Please sign in with your Google account or 8cloud ID before completing payment.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenLogin) onOpenLogin();
+                    }}
+                    className="py-2 px-3.5 rounded-xl bg-white hover:bg-zinc-100 text-zinc-950 font-semibold text-xs flex items-center gap-2 shadow-md cursor-pointer transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                    </svg>
+                    <span>Sign in with Google</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenLogin) onOpenLogin();
+                    }}
+                    className="py-2 px-3.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-xs border border-white/10 cursor-pointer transition-colors"
+                  >
+                    Sign up for 8cloud
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Step 1: Customer Contact Info */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -893,22 +946,36 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
 
-              <button
-                type="submit"
-                className="py-3.5 px-6 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-zinc-950 font-bold text-xs shadow-lg shadow-cyan-500/30 hover:shadow-cyan-400/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Zap className="w-4 h-4 fill-zinc-950" />
-                <span>
-                  {paymentMethod === 'razorpay'
-                    ? `Pay ₹${Math.round(finalTotal * 86.5).toLocaleString('en-IN')} via Razorpay`
-                    : paymentMethod === 'gpay' 
-                    ? 'Pay with Google Pay' 
-                    : paymentMethod === 'upi' 
-                    ? 'Verify & Complete UPI Pay' 
-                    : 'Confirm & Instant Delivery'}
-                </span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              {!currentUser ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenLogin) onOpenLogin();
+                  }}
+                  className="py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-zinc-950 font-bold text-xs shadow-lg shadow-amber-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Lock className="w-4 h-4 text-zinc-950" />
+                  <span>Sign in with Google / 8cloud to Pay</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  className="py-3.5 px-6 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-zinc-950 font-bold text-xs shadow-lg shadow-cyan-500/30 hover:shadow-cyan-400/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Zap className="w-4 h-4 fill-zinc-950" />
+                  <span>
+                    {paymentMethod === 'razorpay'
+                      ? `Pay ₹${Math.round(finalTotal * 86.5).toLocaleString('en-IN')} via Razorpay`
+                      : paymentMethod === 'gpay' 
+                      ? 'Pay with Google Pay' 
+                      : paymentMethod === 'upi' 
+                      ? 'Verify & Complete UPI Pay' 
+                      : 'Confirm & Instant Delivery'}
+                  </span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
           </form>

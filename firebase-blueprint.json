@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Stores user account information and verified profile details",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The user's unique Firebase Auth UID"
+        },
+        "name": {
+          "type": "string",
+          "description": "User display name",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "User verified email address",
+          "maxLength": 150
+        },
+        "avatarUrl": {
+          "type": "string",
+          "description": "Avatar image URL",
+          "maxLength": 500
+        },
+        "role": {
+          "type": "string",
+          "description": "Access control role",
+          "enum": ["customer", "admin"]
+        },
+        "tier": {
+          "type": "string",
+          "description": "Membership status",
+          "maxLength": 50
+        },
+        "authProvider": {
+          "type": "string",
+          "description": "Authentication provider method",
+          "enum": ["google", "email"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "ISO timestamp of account creation"
+        }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer purchase transaction record",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Order identification number"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Customer Firebase Auth UID"
+        },
+        "customerEmail": {
+          "type": "string",
+          "description": "Customer email address",
+          "maxLength": 150
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Customer full name",
+          "maxLength": 100
+        },
+        "total": {
+          "type": "number",
+          "description": "Total purchase amount"
+        },
+        "currency": {
+          "type": "string",
+          "description": "3-letter currency code",
+          "enum": ["USD", "INR", "EUR", "GBP"]
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Payment gateway or method used",
+          "maxLength": 50
+        },
+        "transactionRef": {
+          "type": "string",
+          "description": "Payment gateway reference ID",
+          "maxLength": 128
+        },
+        "fulfillmentStatus": {
+          "type": "string",
+          "description": "Fulfillment status of digital delivery",
+          "enum": ["pending", "processing", "delivered"]
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Order placement timestamp"
+        }
+      },
+      "required": ["id", "userId", "customerEmail", "total", "currency", "fulfillmentStatus"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Individual customer or administrator user profile"
+    },
+    "/users/{userId}/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Purchased digital items and fulfillment records"
+    },
+    "/admins/{adminId}": {
+      "schema": "User",
+      "description": "Store administrator privilege registry"
+    }
+  }
+}

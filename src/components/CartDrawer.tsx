@@ -10,7 +10,7 @@ import {
   Zap, 
   ShieldCheck 
 } from 'lucide-react';
-import { CartItem, CurrencyCode } from '../types';
+import { CartItem, CurrencyCode, User } from '../types';
 import { formatPrice } from '../utils/currency';
 import { ProductArtwork } from './ProductArtwork';
 
@@ -22,6 +22,8 @@ interface CartDrawerProps {
   onUpdateQuantity: (productId: string, delta: number) => void;
   onRemoveItem: (productId: string) => void;
   onProceedToCheckout: (appliedDiscount: number, couponCode?: string) => void;
+  currentUser?: User | null;
+  onOpenLogin?: () => void;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -32,6 +34,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onUpdateQuantity,
   onRemoveItem,
   onProceedToCheckout,
+  currentUser,
+  onOpenLogin,
 }) => {
   const [promoCode, setPromoCode] = useState('');
   const [discountPercent, setDiscountPercent] = useState<number>(0);
@@ -238,14 +242,49 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </div>
               </div>
 
+              {/* Sign in advice if not authenticated */}
+              {!currentUser && (
+                <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-xs text-cyan-200 flex items-start gap-2.5">
+                  <div className="w-5 h-5 rounded-md bg-cyan-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+                  </div>
+                  <div className="space-y-0.5 text-left">
+                    <p className="font-semibold text-white">Login required for order completion</p>
+                    <p className="text-[11px] text-zinc-300">
+                      Sign in with your Google account or 8cloud ID so your license keys & downloads are securely stored in your personal vault.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Instant Checkout Button */}
               <button
-                onClick={() => onProceedToCheckout(discountAmount, promoSuccess ? promoCode : undefined)}
-                className="w-full py-3.5 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-zinc-950 font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                onClick={() => {
+                  if (!currentUser && onOpenLogin) {
+                    onOpenLogin();
+                    return;
+                  }
+                  onProceedToCheckout(discountAmount, promoSuccess ? promoCode : undefined);
+                }}
+                className={`w-full py-3.5 text-zinc-950 font-bold text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                  !currentUser
+                    ? 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-amber-500/20'
+                    : 'bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 shadow-cyan-500/25'
+                }`}
               >
-                <Zap className="w-4 h-4 fill-zinc-950" />
-                <span>Instant Checkout ({formatPrice(finalTotal, currency)})</span>
-                <ArrowRight className="w-4 h-4" />
+                {!currentUser ? (
+                  <>
+                    <Zap className="w-4 h-4 fill-zinc-950" />
+                    <span>Sign In to Finalize Order ({formatPrice(finalTotal, currency)})</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                ) : (
+                  <>
+                    <Zap className="w-4 h-4 fill-zinc-950" />
+                    <span>Instant Checkout ({formatPrice(finalTotal, currency)})</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
 
               <div className="text-center text-[10px] text-zinc-500 flex items-center justify-center gap-2">

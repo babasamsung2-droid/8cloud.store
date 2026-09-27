@@ -23,6 +23,10 @@ import { Product, CartItem, Order, CategoryId, CurrencyCode, User, StoreSettings
 import { getStoredLicenses, saveLicense } from './utils/licenseGenerator';
 import { getInitialCurrency, fetchGeoCurrency, CURRENCY_STORAGE_KEY } from './utils/currency';
 import { Check, ShoppingBag } from 'lucide-react';
+import { auth, fbSignOut, db } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { secureAdminMiddleware, verifyAdminIdentity, registerAdminUid } from './utils/adminSecurity';
 
 const PRODUCTS_STORAGE_KEY = '8cloud_admin_products_v1';
 const CART_STORAGE_KEY = '8cloud_cart_v1';
@@ -194,6 +198,11 @@ export default function App() {
   const [checkoutItems, setCheckoutItems] = useState<CartItem[] | null>(null);
   const [checkoutDiscount, setCheckoutDiscount] = useState<number>(0);
   const [checkoutCoupon, setCheckoutCoupon] = useState<string | undefined>(undefined);
+  const [pendingCheckout, setPendingCheckout] = useState<{
+    items: CartItem[];
+    discount: number;
+    coupon?: string;
+  } | null>(null);
   const [latestDeliveredOrder, setLatestDeliveredOrder] = useState<Order | null>(null);
   const [isValidatorOpen, setIsValidatorOpen] = useState(false);
   const [validatorInitialKey, setValidatorInitialKey] = useState<string>('');
@@ -221,28 +230,48 @@ export default function App() {
     window.location.hash.toLowerCase() === '#admin'
   );
 
-  // Auto-open admin panel if visiting admin subdomain or secret path
+  // Auto-open admin panel if visiting admin subdomain or secret path (UID-guarded)
   useEffect(() => {
     if (isSubdomainOrSecretRoute) {
-      setIsAdminOpen(true);
+      const check = verifyAdminIdentity(currentUser);
+      if (check.authorized && check.uid) {
+        setIsAdminOpen(true);
+      }
     }
-  }, [isSubdomainOrSecretRoute]);
+  }, [isSubdomainOrSecretRoute, currentUser]);
 
-  // Secret keyboard shortcut to open Admin Panel (Ctrl + Shift + A or Cmd + Shift + A)
+  // Secret keyboard shortcut to open Admin Panel (Ctrl + Shift + A or Cmd + Shift + A, UID-guarded)
   useEffect(() => {
     const handleKeyShortcut = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'a' || e.key === 'A')) {
         e.preventDefault();
-        setIsAdminOpen((prev) => !prev);
+        const check = verifyAdminIdentity(currentUser);
+        if (check.authorized && check.uid) {
+          setIsAdminOpen((prev) => !prev);
+        } else {
+          showToast('Administrator UID required: Please sign in as babasamsung2@gmail.com');
+          setIsAuthOpen(true);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyShortcut);
     return () => window.removeEventListener('keydown', handleKeyShortcut);
-  }, []);
+  }, [currentUser]);
 
+  // Securely modify store settings with explicit UID verification
   const handleSaveSettings = (updatedSettings: StoreSettings) => {
-    setStoreSettings(updatedSettings);
-    showToast('Store & Gateway settings updated successfully!');
+    const guard = secureAdminMiddleware(
+      currentUser,
+      'Modify Store Settings',
+      () => {
+        setStoreSettings(updatedSettings);
+        showToast('Store & Gateway settings updated successfully!');
+      },
+      (reason) => {
+        showToast(`Settings change blocked: ${reason}`);
+      }
+    );
+    guard();
   };
 
   // Persist products to localStorage
@@ -281,6 +310,34 @@ export default function App() {
     }
   }, [wishlistIds]);
 
+  // Sync Firebase Authentication state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser && fbUser.email) {
+        const cleanEmail = fbUser.email.toLowerCase().trim();
+        const isAdmin = cleanEmail === 'babasamsung2@gmail.com';
+        const displayName = fbUser.displayName || (cleanEmail ? cleanEmail.split('@')[0] : 'Member');
+        const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+
+        const verifiedUser: User = {
+          id: fbUser.uid,
+          name: formattedName,
+          email: cleanEmail,
+          avatarUrl: fbUser.photoURL || undefined,
+          memberSince: 'March 2026',
+          tier: isAdmin ? 'Store Administrator (Full Control)' : 'Verified Google Customer',
+          role: isAdmin ? 'admin' : 'customer',
+          authProvider: 'google',
+        };
+        setCurrentUser(verifiedUser);
+        if (isAdmin) {
+          registerAdminUid(fbUser.uid, cleanEmail);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Persist current user to localStorage
   useEffect(() => {
     try {
@@ -318,15 +375,27 @@ export default function App() {
       showToast(`Welcome back, ${updatedUser.name}!`);
       setIsAdminLoginMode(false);
     }
+
+    // If customer was in the process of purchasing, resume checkout immediately
+    if (pendingCheckout) {
+      setCheckoutItems(pendingCheckout.items);
+      setCheckoutDiscount(pendingCheckout.discount);
+      setCheckoutCoupon(pendingCheckout.coupon);
+      setPendingCheckout(null);
+    }
   };
 
   const handleOpenAdminLogin = () => {
-    if (currentUser?.email?.toLowerCase().trim() === 'babasamsung2@gmail.com') {
-      setIsAdminOpen(true);
-    } else {
-      setIsAdminLoginMode(true);
-      setIsAuthOpen(true);
-    }
+    const guard = secureAdminMiddleware(
+      currentUser,
+      'Open Admin Panel',
+      () => setIsAdminOpen(true),
+      (reason) => {
+        showToast(`Administrator UID Required: ${reason}`);
+        setIsAuthOpen(true);
+      }
+    );
+    guard();
   };
 
   // 1-Click Fast Google Login
@@ -350,38 +419,67 @@ export default function App() {
     handleLoginSuccess(user);
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await fbSignOut(auth);
+    } catch (err) {
+      console.warn('Firebase sign out notice:', err);
+    }
     setCurrentUser(null);
     showToast('Signed out of 8cloud.store');
   };
 
-  // Admin Product Management Handlers
+  // Admin Product Management Handlers (UID-guarded via secureAdminMiddleware)
   const handleSaveProduct = (updatedProduct: Product) => {
-    setProducts((prev) => {
-      const idx = prev.findIndex((p) => p.id === updatedProduct.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = updatedProduct;
-        return next;
-      } else {
-        return [updatedProduct, ...prev];
-      }
-    });
-    showToast(`Product "${updatedProduct.name}" saved to store!`);
+    const guard = secureAdminMiddleware(
+      currentUser,
+      'Save Product',
+      () => {
+        setProducts((prev) => {
+          const idx = prev.findIndex((p) => p.id === updatedProduct.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = updatedProduct;
+            return next;
+          } else {
+            return [updatedProduct, ...prev];
+          }
+        });
+        showToast(`Product "${updatedProduct.name}" saved to store!`);
+      },
+      (reason) => showToast(`Action Blocked: ${reason}`)
+    );
+    guard();
   };
 
   const handleDeleteProduct = (productId: string) => {
-    const prod = products.find((p) => p.id === productId);
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
-    setWishlistIds((prev) => prev.filter((id) => id !== productId));
-    showToast(`Product "${prod?.name || productId}" deleted from store`);
+    const guard = secureAdminMiddleware(
+      currentUser,
+      'Delete Product',
+      () => {
+        const prod = products.find((p) => p.id === productId);
+        setProducts((prev) => prev.filter((p) => p.id !== productId));
+        setCart((prev) => prev.filter((item) => item.product.id !== productId));
+        setWishlistIds((prev) => prev.filter((id) => id !== productId));
+        showToast(`Product "${prod?.name || productId}" deleted from store`);
+      },
+      (reason) => showToast(`Action Blocked: ${reason}`)
+    );
+    guard();
   };
 
   const handleResetCatalog = () => {
-    setProducts(PRODUCTS);
-    localStorage.removeItem(PRODUCTS_STORAGE_KEY);
-    showToast('Store catalog restored to default inventory');
+    const guard = secureAdminMiddleware(
+      currentUser,
+      'Reset Catalog',
+      () => {
+        setProducts(PRODUCTS);
+        localStorage.removeItem(PRODUCTS_STORAGE_KEY);
+        showToast('Store catalog restored to default inventory');
+      },
+      (reason) => showToast(`Action Blocked: ${reason}`)
+    );
+    guard();
   };
 
   // Toggle wishlist handler
@@ -443,6 +541,12 @@ export default function App() {
 
   // Quick Buy handler (direct checkout for 1 item)
   const handleQuickBuy = (product: Product) => {
+    if (!currentUser) {
+      setPendingCheckout({ items: [{ product, quantity: 1 }], discount: 0 });
+      setIsAuthOpen(true);
+      showToast('Please sign in or create an account to purchase');
+      return;
+    }
     setCheckoutItems([{ product, quantity: 1 }]);
     setCheckoutDiscount(0);
     setCheckoutCoupon(undefined);
@@ -450,6 +554,13 @@ export default function App() {
 
   // Proceed to checkout from cart drawer
   const handleProceedToCheckoutFromCart = (discountAmount: number, couponCode?: string) => {
+    if (!currentUser) {
+      setPendingCheckout({ items: cart, discount: discountAmount, coupon: couponCode });
+      setIsCartOpen(false);
+      setIsAuthOpen(true);
+      showToast('Please sign in with Google or 8cloud to complete your order');
+      return;
+    }
     setIsCartOpen(false);
     setCheckoutItems(cart);
     setCheckoutDiscount(discountAmount);
@@ -465,6 +576,24 @@ export default function App() {
     completedOrder.licenses.forEach((lic) => {
       saveLicense(lic);
     });
+
+    // Save to Firestore if user is authenticated
+    if (currentUser?.id) {
+      setDoc(doc(db, 'users', currentUser.id, 'orders', completedOrder.id), {
+        id: completedOrder.id,
+        userId: currentUser.id,
+        customerEmail: completedOrder.customerEmail,
+        customerName: completedOrder.customerName,
+        total: completedOrder.total,
+        currency: completedOrder.currency,
+        paymentMethod: completedOrder.paymentMethod,
+        transactionRef: completedOrder.transactionRef,
+        fulfillmentStatus: completedOrder.fulfillmentStatus || 'delivered',
+        createdAt: new Date().toISOString(),
+      }).catch((err) => {
+        console.warn('Could not sync order to Firestore:', err);
+      });
+    }
 
     // If checkout was from entire cart, clear the cart
     if (checkoutItems === cart) {
@@ -601,6 +730,13 @@ export default function App() {
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onProceedToCheckout={handleProceedToCheckoutFromCart}
+        currentUser={currentUser}
+        onOpenLogin={() => {
+          setPendingCheckout({ items: cart, discount: 0 });
+          setIsCartOpen(false);
+          setIsAuthOpen(true);
+          showToast('Please sign in with Google or 8cloud to complete your order');
+        }}
       />
 
       {/* Product Detail / Quick View Modal */}
@@ -624,6 +760,7 @@ export default function App() {
         couponCode={checkoutCoupon}
         onOrderCompleted={handleOrderCompleted}
         currentUser={currentUser}
+        onOpenLogin={() => setIsAuthOpen(true)}
       />
 
       {/* Digital Delivery Screen (Immediate License Keys, Downloads, Manifest) */}
@@ -672,26 +809,28 @@ export default function App() {
           setIsAdminLoginMode(false);
         }}
         onLoginSuccess={handleLoginSuccess}
-        initialEmail={currentUser?.email || (isAdminLoginMode ? 'babasamsung2@gmail.com' : '')}
+        initialEmail={currentUser?.email || ''}
         isAdminLoginMode={isAdminLoginMode}
         storeSettings={storeSettings}
       />
 
-      {/* Store Administrator Dashboard & Product Management (Shopify Style) */}
-      <AdminPanel
-        isOpen={isAdminOpen}
-        onClose={() => setIsAdminOpen(false)}
-        products={products}
-        orders={orders}
-        onSaveProduct={handleSaveProduct}
-        onDeleteProduct={handleDeleteProduct}
-        onResetCatalog={handleResetCatalog}
-        currentUser={currentUser}
-        currency={currency}
-        storeSettings={storeSettings}
-        onSaveSettings={handleSaveSettings}
-        onOpenLogin={() => setIsAuthOpen(true)}
-      />
+      {/* Store Administrator Dashboard & Product Management (Strictly babasamsung2@gmail.com) */}
+      {isAdminOpen && currentUser?.email?.toLowerCase().trim() === 'babasamsung2@gmail.com' && (
+        <AdminPanel
+          isOpen={isAdminOpen}
+          onClose={() => setIsAdminOpen(false)}
+          products={products}
+          orders={orders}
+          onSaveProduct={handleSaveProduct}
+          onDeleteProduct={handleDeleteProduct}
+          onResetCatalog={handleResetCatalog}
+          currentUser={currentUser}
+          currency={currency}
+          storeSettings={storeSettings}
+          onSaveSettings={handleSaveSettings}
+          onOpenLogin={() => setIsAuthOpen(true)}
+        />
+      )}
 
       {/* Transient Micro-Toast Notification */}
       {toastMessage && (

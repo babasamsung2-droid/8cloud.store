@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Check, Fingerprint } from 'lucide-react';
+import { X, Cloud } from 'lucide-react';
 import { User, StoreSettings } from '../types';
+import { auth, googleProvider, signInWithPopup, db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { registerAdminUid } from '../utils/adminSecurity';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -20,15 +23,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 }) => {
   const adminEmail = (storeSettings?.adminEmail || 'babasamsung2@gmail.com').toLowerCase().trim();
 
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'passkey'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>('signin');
   const [emailOrId, setEmailOrId] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
-  const [authActionType, setAuthActionType] = useState<'credentials' | 'google' | 'apple' | 'passkey' | null>(null);
+  const [authActionType, setAuthActionType] = useState<'credentials' | 'google' | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [resetSuccessMessage, setResetSuccessMessage] = useState('');
-  const [passkeyStep, setPasskeyStep] = useState<'scanning' | 'success'>('scanning');
 
   // Sync if initialEmail changes
   useEffect(() => {
@@ -59,13 +61,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const input = emailOrId.trim();
     if (!input) return;
 
+    const cleanEmail = input.toLowerCase();
+    const isAdmin = cleanEmail === adminEmail;
+    const requiredAdminPin = storeSettings?.adminPin || '8821';
+
+    // Strict security check for administrator account
+    if (isAdmin && password.trim() !== requiredAdminPin) {
+      setErrorMessage('Access denied. Invalid credentials for administrator.');
+      return;
+    }
+
     setIsVerifying(true);
     setAuthActionType('credentials');
 
     setTimeout(() => {
-      const cleanEmail = input.toLowerCase();
-      const isAdmin = cleanEmail === adminEmail;
-
       const derivedName = fullName.trim() || 
         (isAdmin ? 'Baba Samsung' : (cleanEmail.includes('@') ? cleanEmail.split('@')[0] : cleanEmail));
       const formattedName = derivedName.charAt(0).toUpperCase() + derivedName.slice(1);
@@ -94,24 +103,28 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const input = emailOrId.trim();
     if (!input) return;
 
+    const cleanEmail = input.toLowerCase();
+    if (cleanEmail === adminEmail) {
+      setErrorMessage('This administrator email cannot be registered as a new user. Please sign in directly.');
+      return;
+    }
+
     setIsVerifying(true);
     setAuthActionType('credentials');
 
     setTimeout(() => {
-      const cleanEmail = input.toLowerCase();
-      const isAdmin = cleanEmail === adminEmail;
       const derivedName = fullName.trim() || (cleanEmail.includes('@') ? cleanEmail.split('@')[0] : cleanEmail);
       const formattedName = derivedName.charAt(0).toUpperCase() + derivedName.slice(1);
 
       const user: User = {
-        id: isAdmin ? 'USR-ADMIN-BABA' : `USR-NEW-${Math.floor(100000 + Math.random() * 900000)}`,
+        id: `USR-NEW-${Math.floor(100000 + Math.random() * 900000)}`,
         name: formattedName,
         email: cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@8cloud.store`,
         memberSince: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-        tier: isAdmin ? 'Store Administrator (Full Control)' : 'Verified Customer',
-        role: isAdmin ? 'admin' : 'customer',
+        tier: 'Verified Customer',
+        role: 'customer',
         authProvider: 'email',
-        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formattedName)}&backgroundColor=${isAdmin ? 'd97706' : '0284c7'}`,
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formattedName)}&backgroundColor=0284c7`,
       };
 
       setIsVerifying(false);
@@ -120,82 +133,71 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }, 500);
   };
 
-  // Continue with Google
-  const handleGoogleLogin = (forceEmail?: string) => {
+  // Continue with Real Google Authentication via Firebase
+  const handleGoogleLogin = async () => {
     setIsVerifying(true);
     setAuthActionType('google');
+    setErrorMessage('');
 
-    setTimeout(() => {
-      const emailToUse = (
-        forceEmail || 
-        initialEmail || 
-        (emailOrId.includes('@') ? emailOrId : '') || 
-        'customer@gmail.com'
-      ).toLowerCase().trim();
-      const isAdmin = emailToUse === adminEmail;
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      const cleanEmail = (fbUser.email || '').toLowerCase().trim();
+      const isAdmin = cleanEmail === adminEmail;
+      const displayName = fbUser.displayName || (cleanEmail ? cleanEmail.split('@')[0] : 'Google Customer');
+      const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
       const user: User = {
-        id: isAdmin ? 'USR-ADMIN-BABA' : `USR-GGL-${Math.floor(100000 + Math.random() * 900000)}`,
-        name: isAdmin ? 'Baba Samsung' : (emailToUse.split('@')[0].charAt(0).toUpperCase() + emailToUse.split('@')[0].slice(1)),
-        email: emailToUse,
+        id: fbUser.uid,
+        name: formattedName,
+        email: cleanEmail,
+        avatarUrl: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formattedName)}&backgroundColor=${isAdmin ? 'd97706' : '0284c7'}`,
         memberSince: 'March 2026',
         tier: isAdmin ? 'Store Administrator (Full Control)' : 'Verified Google Customer',
         role: isAdmin ? 'admin' : 'customer',
         authProvider: 'google',
-        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(isAdmin ? 'Baba Samsung' : emailToUse)}&backgroundColor=${isAdmin ? 'd97706' : '0284c7'}`,
       };
+
+      // Safely register/sync profile in Firestore
+      try {
+        await setDoc(
+          doc(db, 'users', fbUser.uid),
+          {
+            id: fbUser.uid,
+            name: formattedName,
+            email: cleanEmail,
+            avatarUrl: fbUser.photoURL || '',
+            role: isAdmin ? 'admin' : 'customer',
+            tier: isAdmin ? 'Store Administrator (Full Control)' : 'Verified Google Customer',
+            authProvider: 'google',
+            createdAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+
+        if (isAdmin) {
+          await registerAdminUid(fbUser.uid, cleanEmail);
+        }
+      } catch (dbErr) {
+        console.warn('Firestore user doc sync warning:', dbErr);
+      }
 
       setIsVerifying(false);
       onLoginSuccess(user);
       onClose();
-    }, 450);
-  };
-
-  // Continue with Apple
-  const handleAppleLogin = () => {
-    setIsVerifying(true);
-    setAuthActionType('apple');
-
-    setTimeout(() => {
-      const user: User = {
-        id: `USR-APL-${Math.floor(100000 + Math.random() * 900000)}`,
-        name: 'Apple User',
-        email: 'apple.user@privaterelay.appleid.com',
-        memberSince: 'March 2026',
-        tier: 'Verified Apple Customer',
-        role: 'customer',
-        authProvider: 'email',
-        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=Apple+User&backgroundColor=0284c7`,
-      };
-
+    } catch (err: any) {
       setIsVerifying(false);
-      onLoginSuccess(user);
-      onClose();
-    }, 450);
-  };
-
-  // Sign in with Passkey
-  const handleStartPasskey = () => {
-    setMode('passkey');
-    setPasskeyStep('scanning');
-
-    setTimeout(() => {
-      setPasskeyStep('success');
-      setTimeout(() => {
-        const isAdmin = emailOrId.toLowerCase().trim() === adminEmail;
-        const user: User = {
-          id: isAdmin ? 'USR-ADMIN-BABA' : `USR-PASSKEY-${Math.floor(100000 + Math.random() * 900000)}`,
-          name: isAdmin ? 'Baba Samsung' : 'Passkey Verified User',
-          email: isAdmin ? adminEmail : 'user.passkey@8cloud.store',
-          memberSince: 'March 2026',
-          tier: isAdmin ? 'Store Administrator (Full Control)' : 'Biometric Verified User',
-          role: isAdmin ? 'admin' : 'customer',
-          authProvider: 'email',
-        };
-        onLoginSuccess(user);
-        onClose();
-      }, 500);
-    }, 900);
+      console.error('Google Sign-In Error:', err);
+      if (err.code === 'auth/popup-closed-by-user') {
+        setErrorMessage('Google sign-in popup was closed before completing.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setErrorMessage('Sign-in popup blocked. Please allow popups for this window.');
+      } else if (err.code === 'auth/cancelled-popup-request') {
+        // Request superseded
+      } else {
+        setErrorMessage(err.message || 'Google authentication encountered an issue.');
+      }
+    }
   };
 
   // Handle Forgot Password
@@ -212,7 +214,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150">
       
-      {/* Exact GitHub Styled Sign-In Card */}
+      {/* Clean Modern Sign-In Card */}
       <div className="relative w-full max-w-[370px] sm:max-w-[400px] bg-white text-[#1f2328] rounded-xl shadow-2xl border border-[#d0d7de] p-6 sm:p-8 my-6">
         
         {/* Close Button */}
@@ -225,23 +227,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           <X className="w-4 h-4" />
         </button>
 
-        {/* Top GitHub Invertocat Icon */}
+        {/* 8cloud Brand Icon */}
         <div className="flex justify-center mb-3">
-          <svg className="w-12 h-12 text-[#1f2328]" viewBox="0 0 98 96" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              clipRule="evenodd"
-              d="M48.854 0C21.839 0 0 22 0 49.217c0 21.756 13.993 40.172 33.405 46.69 2.427.49 3.316-1.059 3.316-2.362 0-1.141-.08-5.052-.08-9.127-13.59 2.934-16.42-5.867-16.42-5.867-2.184-5.704-5.42-7.17-5.42-7.17-4.448-3.015.324-3.015.324-3.015 4.934.326 7.523 5.052 7.523 5.052 4.367 7.496 11.404 5.378 14.235 4.074.404-3.178 1.699-5.378 3.074-6.6-10.839-1.141-22.243-5.378-22.243-24.283 0-5.378 1.94-9.778 5.014-13.2-.485-1.222-2.184-6.275.486-13.038 0 0 4.125-1.304 13.426 5.052a46.97 46.97 0 0 1 12.214-1.63c4.125 0 8.33.571 12.213 1.63 9.302-6.356 13.427-5.052 13.427-5.052 2.67 6.763.97 11.816.485 13.038 3.155 3.422 5.015 7.822 5.015 13.2 0 18.905-11.404 23.06-22.324 24.283 1.78 1.548 3.316 4.481 3.316 9.126 0 6.6-.08 11.897-.08 13.526 0 1.304.89 2.853 3.316 2.364 19.412-6.52 33.405-24.935 33.405-46.691C97.707 22 75.788 0 48.854 0z"
-            />
-          </svg>
+          <div className="w-12 h-12 rounded-2xl bg-zinc-950 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-md">
+            <Cloud className="w-6 h-6 text-cyan-400" />
+          </div>
         </div>
 
-        {/* Heading matching the uploaded screenshot */}
-        <h1 className="text-[24px] font-light text-center text-[#1f2328] tracking-tight mb-4 font-sans">
-          {mode === 'signin' && 'Sign in to GitHub'}
-          {mode === 'signup' && 'Sign up to GitHub'}
+        {/* Heading */}
+        <h1 className="text-[22px] font-semibold text-center text-[#1f2328] tracking-tight mb-4 font-sans">
+          {mode === 'signin' && 'Sign in to 8cloud'}
+          {mode === 'signup' && 'Sign up to 8cloud'}
           {mode === 'forgot' && 'Reset your password'}
-          {mode === 'passkey' && 'Sign in with a passkey'}
         </h1>
 
         {/* Error / Alert notification */}
@@ -332,9 +329,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
             </div>
 
-            {/* Social Authentication Buttons */}
+            {/* Real Google Authentication Button */}
             <div className="space-y-2">
-              {/* Continue with Google */}
               <button
                 type="button"
                 onClick={() => handleGoogleLogin()}
@@ -355,50 +351,22 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </>
                 )}
               </button>
-
-              {/* Continue with Apple */}
-              <button
-                type="button"
-                onClick={() => handleAppleLogin()}
-                disabled={isVerifying}
-                className="w-full py-2 px-3 bg-white hover:bg-[#f6f8fa] active:bg-[#f3f4f6] border border-[#d0d7de] rounded-md text-[14px] font-medium text-[#1f2328] shadow-xs flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                {isVerifying && authActionType === 'apple' ? (
-                  <div className="w-4 h-4 border-2 border-[#1f2328] border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <>
-                    <svg className="w-4 h-4 fill-current text-black shrink-0" viewBox="0 0 170 170">
-                      <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.69-3.04-7.67-7.85-11.96-14.42-7.53-11.45-13.06-23.77-16.59-36.96-3.53-13.18-5.3-25.13-5.3-35.85 0-14.86 3.65-27.13 10.95-36.81 7.3-9.68 16.51-14.61 27.63-14.79 5.03 0 10.38 1.34 16.05 4.02 5.68 2.68 9.54 4.09 11.59 4.22 1.63 0 5.8-1.48 12.51-4.44 6.71-2.96 12.45-4.22 17.21-3.79 12.75 1.09 22.84 5.92 30.28 14.5-11.13 6.74-16.57 16.2-16.32 28.38.25 9.79 4.05 17.93 11.4 24.41 7.35 6.48 16.03 10.23 26.04 11.25-2.23 6.64-4.89 13.09-7.98 19.34zM119.22 33.02c0-7.39 2.66-14.34 7.98-20.85 5.32-6.51 11.9-10.74 19.74-12.17.65 1.52.98 3.15.98 4.89 0 7.39-2.77 14.45-8.31 21.18-5.54 6.73-12.28 10.87-20.21 12.42-.08-1.74-.18-3.56-.18-5.47z" />
-                    </svg>
-                    <span>Continue with Apple</span>
-                  </>
-                )}
-              </button>
             </div>
 
-            {/* Bottom New to GitHub link box */}
+            {/* Bottom New to 8cloud Sign up box */}
             <div className="border border-[#d0d7de] rounded-md p-4 text-center text-[14px] text-[#1f2328] mt-4">
-              New to GitHub?{' '}
+              New to 8cloud?{' '}
               <button
                 type="button"
                 onClick={() => {
                   setMode('signup');
                   setErrorMessage('');
                 }}
-                className="text-[#0969da] hover:underline font-medium cursor-pointer"
+                className="text-[#0969da] hover:underline font-semibold cursor-pointer"
               >
-                Create an account
+                Sign up
               </button>
             </div>
-
-            {/* Passkey Link */}
-            <button
-              type="button"
-              onClick={handleStartPasskey}
-              className="text-[#0969da] hover:underline text-[12px] block mx-auto mt-4 cursor-pointer"
-            >
-              Sign in with a passkey
-            </button>
           </>
         )}
 
@@ -476,9 +444,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   setMode('signin');
                   setErrorMessage('');
                 }}
-                className="text-[#0969da] hover:underline font-medium cursor-pointer"
+                className="text-[#0969da] hover:underline font-semibold cursor-pointer"
               >
-                Sign in →
+                Sign in
               </button>
             </div>
           </>
@@ -527,44 +495,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   setMode('signin');
                   setErrorMessage('');
                 }}
-                className="text-[#0969da] hover:underline font-medium cursor-pointer"
+                className="text-[#0969da] hover:underline font-semibold cursor-pointer"
               >
                 ← Return to sign in
               </button>
             </div>
           </>
-        )}
-
-        {/* 4. PASSKEY MODE */}
-        {mode === 'passkey' && (
-          <div className="bg-[#f6f8fa] border border-[#d0d7de] rounded-md p-6 text-center space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-[#ddf4ff] border border-[#54aeff]/30 flex items-center justify-center text-[#0969da]">
-              {passkeyStep === 'scanning' ? (
-                <Fingerprint className="w-8 h-8 animate-pulse text-[#0969da]" />
-              ) : (
-                <Check className="w-8 h-8 text-[#1a7f37]" />
-              )}
-            </div>
-
-            <div className="space-y-1">
-              <h3 className="text-base font-semibold text-[#1f2328]">
-                {passkeyStep === 'scanning' ? 'Verify your Identity' : 'Passkey Verified'}
-              </h3>
-              <p className="text-xs text-[#656d76]">
-                {passkeyStep === 'scanning'
-                  ? 'Touch your security key or biometric sensor (Touch ID / Windows Hello)...'
-                  : 'Authenticated successfully. Redirecting to 8cloud...'}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setMode('signin')}
-              className="text-xs text-[#0969da] hover:underline cursor-pointer pt-2 inline-block"
-            >
-              Cancel and return to sign in
-            </button>
-          </div>
         )}
 
       </div>
