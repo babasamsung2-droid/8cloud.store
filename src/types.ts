@@ -101,11 +101,9 @@ export type PaymentMethod = 'razorpay' | 'upi' | 'card' | 'netbanking' | 'crypto
 
 export interface StoreSettings {
   adminEmail: string;
-  adminPin: string;
   privateAdminMode: boolean; // if true, hides Admin buttons from public storefront
   subdomainEnabled: boolean; // allows admin.domain.com routing
   razorpayKeyId: string;
-  razorpayKeySecret?: string;
   razorpayTestMode: boolean;
   storeName: string;
   storeCurrency: CurrencyCode;

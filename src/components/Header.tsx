@@ -32,7 +32,6 @@ interface HeaderProps {
   onOpenWishlist?: () => void;
   currentUser?: User | null;
   onOpenLogin?: () => void;
-  onFastGoogleLogin?: () => void;
   onOpenAdmin?: () => void;
   isAdminVisible?: boolean;
 }
@@ -52,7 +51,6 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenWishlist,
   currentUser,
   onOpenLogin,
-  onFastGoogleLogin,
   onOpenAdmin,
   isAdminVisible = true,
 }) => {

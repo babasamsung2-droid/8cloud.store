@@ -78,26 +78,17 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'active' | 'draft'>('all');
-  
-  // Security Barrier states
-  const [isPinUnlocked, setIsPinUnlocked] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState('');
 
   // Settings form states
-  const [settingsAdminPin, setSettingsAdminPin] = useState(storeSettings.adminPin || '8821');
   const [settingsPrivateMode, setSettingsPrivateMode] = useState(storeSettings.privateAdminMode);
-  const [settingsRazorpayKey, setSettingsRazorpayKey] = useState(storeSettings.razorpayKeyId || 'rzp_test_8cloudStoreDemo');
-  const [settingsRazorpaySecret, setSettingsRazorpaySecret] = useState(storeSettings.razorpayKeySecret || '');
+  const [settingsRazorpayKey, setSettingsRazorpayKey] = useState(storeSettings.razorpayKeyId || '');
   const [settingsRazorpayTestMode, setSettingsRazorpayTestMode] = useState(storeSettings.razorpayTestMode);
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
 
   // Sync settings when props change
   useEffect(() => {
-    setSettingsAdminPin(storeSettings.adminPin || '8821');
     setSettingsPrivateMode(storeSettings.privateAdminMode);
-    setSettingsRazorpayKey(storeSettings.razorpayKeyId || 'rzp_test_8cloudStoreDemo');
-    setSettingsRazorpaySecret(storeSettings.razorpayKeySecret || '');
+    setSettingsRazorpayKey(storeSettings.razorpayKeyId || '');
     setSettingsRazorpayTestMode(storeSettings.razorpayTestMode);
   }, [storeSettings]);
 
@@ -152,10 +143,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     e.preventDefault();
     const updated: StoreSettings = {
       ...storeSettings,
-      adminPin: settingsAdminPin.trim() || '8821',
       privateAdminMode: settingsPrivateMode,
-      razorpayKeyId: settingsRazorpayKey.trim() || 'rzp_test_8cloudStoreDemo',
-      razorpayKeySecret: settingsRazorpaySecret.trim(),
+      razorpayKeyId: settingsRazorpayKey.trim(),
       razorpayTestMode: settingsRazorpayTestMode,
     };
 
@@ -987,35 +976,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     </ol>
                   </div>
 
-                  {/* Master Admin PIN */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                    <div>
-                      <label className="block text-xs text-zinc-400 mb-1">Master Admin Security PIN</label>
-                      <input
-                        type="text"
-                        value={settingsAdminPin}
-                        onChange={(e) => setSettingsAdminPin(e.target.value)}
-                        placeholder="8821"
-                        maxLength={10}
-                        className="w-full bg-zinc-900 border border-white/10 text-xs text-white px-3 py-2 rounded-xl font-mono focus:outline-none focus:border-amber-400"
-                      />
-                      <p className="text-[10px] text-zinc-500 mt-1">
-                        Enter this 4-digit code to unlock the admin panel from any browser.
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-zinc-400 mb-1">Authorized Admin Gmail</label>
-                      <input
-                        type="text"
-                        readOnly
-                        value="babasamsung2@gmail.com"
-                        className="w-full bg-zinc-900 border border-white/10 text-xs text-zinc-300 px-3 py-2 rounded-xl font-mono cursor-not-allowed"
-                      />
-                      <p className="text-[10px] text-zinc-500 mt-1">
-                        Logging in with this Gmail unlocks admin status automatically.
-                      </p>
-                    </div>
+                  <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-4 text-[11px] leading-relaxed text-amber-100">
+                    Admin access must use Firebase Authentication. Browser PINs are intentionally disabled because client-side credentials cannot protect production data.
                   </div>
                 </div>
 
@@ -1097,20 +1059,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                       </p>
                     </div>
 
-                    <div>
-                      <label className="block text-xs text-zinc-300 mb-1 font-medium">
-                        Razorpay Key Secret (Optional / Webhooks)
-                      </label>
-                      <input
-                        type="password"
-                        value={settingsRazorpaySecret}
-                        onChange={(e) => setSettingsRazorpaySecret(e.target.value)}
-                        placeholder="••••••••••••••••••••••••"
-                        className="w-full bg-zinc-900 border border-white/10 text-xs text-white px-3 py-2 rounded-xl font-mono focus:outline-none focus:border-cyan-400"
-                      />
-                      <p className="text-[10px] text-zinc-500 mt-1">
-                        Stored securely for signature authentication and payment webhooks.
-                      </p>
+                    <div className="rounded-xl border border-rose-400/20 bg-rose-400/5 p-3 text-[11px] leading-relaxed text-rose-200">
+                      Razorpay Key Secret is server-only and cannot be entered or stored in this browser. Configure it in Vercel environment variables when the payment API is added.
                     </div>
                   </div>
 

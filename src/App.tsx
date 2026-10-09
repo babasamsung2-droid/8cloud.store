@@ -22,7 +22,9 @@ import { PRODUCTS } from './data/products';
 import { Product, CartItem, Order, CategoryId, CurrencyCode, User, StoreSettings } from './types';
 import { getStoredLicenses, saveLicense } from './utils/licenseGenerator';
 import { getInitialCurrency, fetchGeoCurrency, CURRENCY_STORAGE_KEY } from './utils/currency';
-import { Check, ShoppingBag } from 'lucide-react';
+import { Check, ShoppingBag, TriangleAlert } from 'lucide-react';
+import { STORE_RUNTIME_CONFIG } from './config/storeMode';
+import { sanitizeStoreSettings } from './config/storeSettings';
 import { auth, fbSignOut, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
@@ -37,11 +39,9 @@ const SETTINGS_STORAGE_KEY = '8cloud_store_settings_v1';
 
 const DEFAULT_SETTINGS: StoreSettings = {
   adminEmail: 'babasamsung2@gmail.com',
-  adminPin: '8821',
   privateAdminMode: true, // Default to true: Admin button hidden from public storefront
   subdomainEnabled: true,
-  razorpayKeyId: (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || 'rzp_test_8cloudStoreDemo',
-  razorpayKeySecret: '',
+  razorpayKeyId: (import.meta.env.VITE_RAZORPAY_KEY_ID as string) || '',
   razorpayTestMode: true,
   storeName: '8cloud.store',
   storeCurrency: 'INR',
@@ -187,7 +187,7 @@ export default function App() {
   const [storeSettings, setStoreSettings] = useState<StoreSettings>(() => {
     try {
       const saved = localStorage.getItem(SETTINGS_STORAGE_KEY);
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+      return saved ? sanitizeStoreSettings({ ...DEFAULT_SETTINGS, ...JSON.parse(saved) }) : DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
@@ -215,7 +215,7 @@ export default function App() {
   // Persist store settings to localStorage
   useEffect(() => {
     try {
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(storeSettings));
+      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(sanitizeStoreSettings(storeSettings)));
     } catch (e) {
       console.error('Failed to save store settings to localStorage', e);
     }
@@ -396,27 +396,6 @@ export default function App() {
       }
     );
     guard();
-  };
-
-  // 1-Click Fast Google Login
-  const handleFastGoogleLogin = (customEmail?: string, customName?: string) => {
-    const browserEmail = (customEmail || 'customer@gmail.com').trim().toLowerCase();
-    const isAdmin = browserEmail === 'babasamsung2@gmail.com';
-    const derivedName = customName || (isAdmin ? 'Baba Samsung' : (browserEmail.split('@')[0]));
-    const formattedName = derivedName.charAt(0).toUpperCase() + derivedName.slice(1);
-
-    const user: User = {
-      id: isAdmin ? 'USR-ADMIN-BABA' : `USR-GGL-${Math.floor(100000 + Math.random() * 900000)}`,
-      name: formattedName,
-      email: browserEmail,
-      memberSince: 'March 2026',
-      tier: isAdmin ? 'Store Administrator (Full Control)' : 'Verified Google Customer',
-      role: isAdmin ? 'admin' : 'customer',
-      authProvider: 'google',
-      avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formattedName)}&backgroundColor=${isAdmin ? 'd97706' : '0284c7'}`,
-    };
-
-    handleLoginSuccess(user);
   };
 
   const handleSignOut = async () => {
@@ -624,7 +603,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#030305] text-zinc-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
-      
+
+      {!STORE_RUNTIME_CONFIG.checkoutEnabled && (
+        <div className="sticky top-0 z-[70] flex items-center justify-center gap-2 border-b border-amber-400/25 bg-amber-400/10 px-4 py-2 text-center text-[11px] font-semibold text-amber-200 backdrop-blur-xl">
+          <TriangleAlert className="h-4 w-4 shrink-0" />
+          <span>Demo storefront — checkout and payment collection are disabled until the secure server-side payment system is connected.</span>
+        </div>
+      )}
+
       {/* Dynamic SEO Meta Tag & Social Graph Generator */}
       <SEOHead
         selectedCategory={selectedCategory}
@@ -662,7 +648,6 @@ export default function App() {
         }}
         currentUser={currentUser}
         onOpenLogin={() => setIsAuthOpen(true)}
-        onFastGoogleLogin={() => handleFastGoogleLogin()}
         onOpenAdmin={() => setIsAdminOpen(true)}
         isAdminVisible={currentUser?.email?.trim().toLowerCase() === 'babasamsung2@gmail.com'}
       />

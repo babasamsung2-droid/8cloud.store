@@ -21,6 +21,7 @@ import {
 import { CartItem, CurrencyCode, Order, IssuedLicense, User, PaymentMethod } from '../types';
 import { formatPrice } from '../utils/currency';
 import { generateCryptoLicenseKey } from '../utils/licenseGenerator';
+import { STORE_RUNTIME_CONFIG } from '../config/storeMode';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -163,6 +164,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!STORE_RUNTIME_CONFIG.checkoutEnabled) {
+      setCouponMsg({
+        type: 'error',
+        text: 'Checkout is disabled while 8cloud.store is in demo mode. No payment has been collected.',
+      });
+      return;
+    }
     if (!currentUser) {
       if (onOpenLogin) onOpenLogin();
       return;
@@ -946,7 +954,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </div>
               </div>
 
-              {!currentUser ? (
+              {!STORE_RUNTIME_CONFIG.checkoutEnabled ? (
+                <button
+                  type="button"
+                  disabled
+                  className="py-3.5 px-6 rounded-xl bg-zinc-800 text-zinc-400 font-bold text-xs border border-amber-400/20 flex items-center justify-center gap-2 cursor-not-allowed"
+                >
+                  <Lock className="w-4 h-4" />
+                  <span>Demo Mode — Payments Disabled</span>
+                </button>
+              ) : !currentUser ? (
                 <button
                   type="button"
                   onClick={() => {

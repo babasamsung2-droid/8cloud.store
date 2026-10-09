@@ -29,34 +29,44 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.admin == true ||
         (request.auth.token.email != null && 
          request.auth.token.email.lower() == 'babasamsung2@gmail.com' && 
          request.auth.token.email_verified == true)
       );
     }
 
+    function validNewUserProfile(userId) {
+      return isOwner(userId) &&
+        incoming().keys().hasOnly(['id', 'name', 'email', 'avatarUrl', 'authProvider', 'createdAt', 'updatedAt']) &&
+        incoming().id == request.auth.uid &&
+        incoming().email == request.auth.token.email;
+    }
+
+    function validUserProfileUpdate(userId) {
+      return isOwner(userId) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'avatarUrl', 'authProvider', 'updatedAt']) &&
+        incoming().id == request.auth.uid &&
+        incoming().email == request.auth.token.email;
+    }
+
     // Admins registry
     match /admins/{adminId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     // Users collection
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
-      allow create: if isOwner(userId) && isValidId(userId);
-      allow update: if (isOwner(userId) || isAdmin()) && isValidId(userId);
+      allow create: if validNewUserProfile(userId);
+      allow update: if validUserProfileUpdate(userId);
       allow delete: if isAdmin();
 
-      // Orders subcollection
+      // Orders are written only by the trusted payment backend.
       match /orders/{orderId} {
-        allow get: if isOwner(userId) || isAdmin();
-        allow list: if isOwner(userId) || isAdmin();
-        allow create: if isOwner(userId) && isValidId(orderId);
-        allow update: if isAdmin();
-        allow delete: if isAdmin();
+        allow get, list: if isOwner(userId) || isAdmin();
+        allow create, update, delete: if false;
       }
     }
   }
