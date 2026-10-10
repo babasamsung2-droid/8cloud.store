@@ -1,6 +1,6 @@
 # 8cloud.store: secure ebook and digital-product sales
 
-This source adds a Firebase + Razorpay commerce flow to the existing store. It is configured as a demo by default and has not been deployed. Do not switch to live keys until sandbox integration tests pass with your own accounts and files.
+This source adds a Firebase + Razorpay commerce flow to the existing store. It is configured as a demo by default. Cloud service setup is documented in `deploy/README.md` and has not yet been verified in your account. Do not switch to live keys until sandbox integration tests pass with your own accounts and files.
 
 ## What is implemented
 
@@ -14,7 +14,8 @@ This source adds a Firebase + Razorpay commerce flow to the existing store. It i
 - Private, immutable file generations and 60-second signed download URLs. The file is not bundled with the website or stored under a public download URL.
 - New links blocked for refunded/revoked orders. Gateway refund state is checked before every link even when its webhook is delayed. Any partial refund conservatively revokes all downloads for the order; item-level partial refunds are not yet supported.
 - Atomic limit of 10 link requests per file/order/hour, plus 30 authenticated API requests per customer/minute.
-- Server-side catalog import tool for publishing real ebooks. The old browser-only admin edits are blocked when commerce is enabled.
+- Server-backed admin panel for ebook drafts, INR pricing, private PDF/EPUB/ZIP uploads, publishing/unpublishing and recent orders. Every admin route requires a verified Firebase `storeAdmin` claim. Product writes use revision checks and audit records.
+- Cloud Run bootstrap script, secret-safe configuration checker and trusted operator admin-claim command. See `deploy/README.md`.
 
 ## How the buyer flow works
 
@@ -91,7 +92,7 @@ node --env-file=.env import-products.mjs /private/path/your-products.json
 
 The importer validates files and display fields before the batch commit. Existing products omitted from an import remain unchanged; explicitly import a product with `active=false` to stop future sales. Previously paid buyers retain their snapshotted purchase file access unless the order is revoked. The real catalog is returned by `/catalog`; demo products are not automatically published or sold.
 
-The old browser admin screen is a demo editor, not a shared production product manager. This version intentionally uses a trusted import workflow. A file-upload/admin publishing UI is future work.
+The store admin now uses the server catalog. Configure the API URL and grant the owner the `storeAdmin` claim before using `/admin`. You can prepare drafts while customer checkout remains disabled. See `deploy/README.md` for uploads, limits, admin access and Cloud Run setup. The importer is still available for trusted bulk operations; avoid running imports while another admin is editing products.
 
 ## Configure payments in test mode
 
@@ -140,7 +141,7 @@ Required sandbox checks with real configured services:
 
 ## Remaining launch work and limits
 
-You still need real originals, actual gateway/account configuration, HTTPS hosting, deployed rules/indexes/IAM, legal business details and published refund/privacy/license pages. Tax determination, automated receipts/email delivery, PDF watermarking, item-level partial refunds, a production admin upload UI, automated reconciliation jobs, observability and backups are not implemented by this change. Refunds are initiated through the provider dashboard; their processing revokes download access here.
+You still need real originals, actual gateway/account configuration, HTTPS hosting, deployed rules/indexes/IAM, legal business details and published refund/privacy/license pages. Tax determination, automated receipts/email delivery, PDF watermarking, item-level partial refunds, automated reconciliation jobs, observability and backups are not implemented by this change. Refunds are initiated through the provider dashboard; their processing revokes download access here.
 
 The backend totals use the configured product amount as the final charge. There is no tax engine or coupon engine: set prices according to your actual tax obligations and disclose the policy before launch. Non-INR catalog values are approximate display conversions; settlement is INR and the final INR amount is shown before payment.
 
@@ -153,7 +154,7 @@ The backend totals use the configured product amount as the final charge. There 
 - `git diff --check` passed.
 - Live Firebase/Razorpay/storage integration has not been exercised: credentials, private bucket and real products are not configured.
 - Browser visual verification is pending because the local preview URL timed out in the browser tool. API HTTP tests ran successfully on localhost.
-- No repository push, deployment, real payment, cloud permission change or product upload was performed.
+- The earlier secure-commerce source was pushed to GitHub. This admin update has been tested locally; actual cloud deployment, IAM, uploads and sandbox payments require account setup.
 
 ## Official references
 
@@ -161,3 +162,7 @@ The backend totals use the configured product amount as the final charge. There 
 - Razorpay raw-body webhook verification: https://razorpay.com/docs/webhooks/validate-test/
 - Firebase ID token verification: https://firebase.google.com/docs/auth/admin/verify-id-tokens
 - Cloud Storage signed URL behavior and limitations: https://cloud.google.com/storage/docs/access-control/signed-urls
+
+## Admin update validation
+
+The server-backed admin panel replaces the browser-only editor in the application. It requires an API connection even while the storefront is in demo mode. Drafts, files and order records are not faked locally. Uploads are capped at 25 MB each and 10 files per product; basic format checks are not antivirus scanning. Published originals and sold file generations must be retained.

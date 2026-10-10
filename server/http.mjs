@@ -1,16 +1,17 @@
 import { createServer } from 'node:http';
 import { ApiError } from './core.mjs';
+import { requireAdmin } from './admin.mjs';
 
-async function readBody(req) {
+async function readBody(req, limit = 65536) {
   const chunks = []; let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 65536) throw new ApiError(413, 'Request too large.');
+    if (size > limit) throw new ApiError(413, 'Request too large.');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
 }
-export function createApi({ commerce, auth, repo, allowedOrigin }) {
+export function createApi({ commerce, admin, auth, repo, allowedOrigin }) {
   return createServer(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -38,6 +39,16 @@ export function createApi({ commerce, auth, repo, allowedOrigin }) {
       try { user = await auth.verifyIdToken(token, true); } catch { throw new ApiError(401, 'Your sign-in session expired. Please sign in again.'); }
       if (user.email_verified !== true) throw new ApiError(403, 'A verified email is required.');
       await repo.consumeApi(user.uid, Math.floor(Date.now() / 60000), 30);
+      if (path.startsWith('/admin/')) {
+        requireAdmin(user);
+        if (!admin) throw new ApiError(503, 'Admin service is not configured.');
+        if (path === '/admin/dashboard' && req.method === 'GET') return send(200, await admin.dashboard());
+        if (path === '/admin/files' && req.method === 'POST') {
+          if (req.headers['content-type'] !== 'application/octet-stream') throw new ApiError(415, 'Upload a binary file.');
+          const name = new URL(req.url, 'http://api.local').searchParams.get('name');
+          return send(201, await admin.upload(user, name, await readBody(req, 25 * 1024 * 1024)));
+        }
+      }
       if (path === '/orders' && req.method === 'GET') return send(200, { orders: await commerce.listOrders(user.uid) });
       if (req.method !== 'POST') throw new ApiError(404, 'Endpoint not found.');
       if (!/^application\/json(?:;|$)/i.test(req.headers['content-type'] || '')) throw new ApiError(415, 'JSON is required.');
@@ -47,6 +58,7 @@ export function createApi({ commerce, auth, repo, allowedOrigin }) {
         throw new ApiError(400, 'Invalid JSON.');
       }
       if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ApiError(400, 'Invalid request.');
+      if (path === '/admin/products') return send(200, await admin.save(user, input));
       if (path === '/orders') return send(201, await commerce.createOrder(user.uid, input));
       if (path === '/orders/reconcile') return send(200, await commerce.reconcileOrder(user.uid, input.orderId));
       if (path === '/payments/verify') return send(200, await commerce.verifyPayment(user.uid, input));

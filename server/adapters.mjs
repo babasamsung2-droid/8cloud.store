@@ -2,7 +2,7 @@ import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { ApiError, requireId, assertPrivateBucketMetadata } from './core.mjs';
 
 export async function createFirebaseAdapters(env) {
@@ -17,6 +17,23 @@ export async function createFirebaseAdapters(env) {
   return {
     auth: getAuth(app),
     repo: {
+      async adminProducts() {
+        return (await db.collection('commerceProducts').orderBy('__name__').limit(201).get()).docs.map(doc => ({ ...doc.data(), id: doc.id }));
+      },
+      async adminOrders() {
+        return (await orders.orderBy('createdAt', 'desc').limit(100).get()).docs.map(doc => doc.data());
+      },
+      async saveProduct(product, revision, uid) {
+        const { id, ...value } = product;
+        const ref = db.collection('commerceProducts').doc(id);
+        await db.runTransaction(async tx => {
+          const existing = await tx.get(ref);
+          if ((existing.data()?.revision ?? null) !== revision) throw new ApiError(409, 'Product changed in another session. Reload before saving.');
+          const nextRevision = randomUUID();
+          tx.set(ref, { ...value, revision: nextRevision, updatedAt: new Date().toISOString(), updatedBy: uid });
+          tx.create(db.collection('commerceAudit').doc(), { action: 'product.save', productId: id, active: value.active, uid, revision: nextRevision, at: new Date().toISOString() });
+        });
+      },
       async listProducts() {
         const snapshot = await db.collection('commerceProducts').where('active', '==', true).limit(200).get();
         const fields = ['tagline', 'description', 'longDescription', 'categoryId', 'categoryName', 'deliveryFormat', 'downloadSize', 'version', 'licenseType', 'features', 'systemRequirements', 'includedFiles', 'tags', 'gradientTheme', 'iconType', 'ebookDetails'];
@@ -80,6 +97,17 @@ export async function createFirebaseAdapters(env) {
       },
     },
     storage: {
+      async upload(name, bytes, uid) {
+        const [metadata] = await bucket.getMetadata();
+        assertPrivateBucketMetadata(metadata);
+        const id = randomUUID();
+        const objectPath = `private-products/${id}/${name}`;
+        const object = bucket.file(objectPath);
+        await object.save(bytes, { resumable: false, validation: 'crc32c', preconditionOpts: { ifGenerationMatch: 0 },
+          metadata: { contentType: 'application/octet-stream', cacheControl: 'private, no-store', metadata: { uploadedBy: uid, sha256: createHash('sha256').update(bytes).digest('hex') } } });
+        const [meta] = await object.getMetadata();
+        return { id, name, objectPath, generation: String(meta.generation) };
+      },
       async assertPrivate(file) {
         if (Date.now() - bucketCheckedAt > 60000) {
           const [metadata] = await bucket.getMetadata();

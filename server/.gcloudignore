@@ -1,0 +1,8 @@
+.git/
+node_modules/
+.env*
+*.log
+products*.json
+service-account*.json
+*.pem
+*.key

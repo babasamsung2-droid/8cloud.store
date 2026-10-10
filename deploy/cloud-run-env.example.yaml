@@ -1,0 +1,8 @@
+# Non-secret Cloud Run configuration. Replace the bucket with the dedicated bucket you create.
+FIREBASE_PROJECT_ID: "gen-lang-client-0316422252"
+FIRESTORE_DATABASE_ID: "ai-studio-8cloudstore-08124990-41ca-49e5-9848-d9faf4b2bc64"
+PRIVATE_STORAGE_BUCKET: "REPLACE_WITH_DEDICATED_PRIVATE_BUCKET"
+STOREFRONT_ORIGIN: "https://www.8cloud.store"
+PAYMENT_MODE: "test"
+COMMERCE_ENABLED: "false"
+PRIVATE_BUCKET_CONFIRMED: "true"

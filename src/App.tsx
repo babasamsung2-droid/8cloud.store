@@ -17,7 +17,7 @@ import { CheckoutModal } from './components/CheckoutModal';
 import { LicenseKeyValidatorModal } from './components/LicenseKeyValidatorModal';
 import { MyVaultModal } from './components/MyVaultModal';
 import { AuthModal } from './components/AuthModal';
-import { AdminPanel } from './components/AdminPanel';
+import { StoreAdminPanel } from './components/StoreAdminPanel';
 import { SEOHead } from './components/SEOHead';
 import { Footer } from './components/Footer';
 import { PRODUCTS } from './data/products';
@@ -709,19 +709,14 @@ export default function App() {
 
       {/* Store Administrator Dashboard & Product Management (Strictly babasamsung2@gmail.com) */}
       {isAdminOpen && verifyAdminIdentity(currentUser).authorized && (
-        <AdminPanel
-          isOpen={isAdminOpen}
+        <StoreAdminPanel
           onClose={() => setIsAdminOpen(false)}
-          products={products}
-          orders={orders}
-          onSaveProduct={handleSaveProduct}
-          onDeleteProduct={handleDeleteProduct}
-          onResetCatalog={handleResetCatalog}
-          currentUser={currentUser}
-          currency={currency}
-          storeSettings={storeSettings}
-          onSaveSettings={handleSaveSettings}
-          onOpenLogin={() => setIsAuthOpen(true)}
+          onCatalogChanged={() => {
+            if (STORE_RUNTIME_CONFIG.checkoutEnabled) {
+              commerceRequest<{ products: Product[] }>('/catalog', undefined, false)
+                .then(result => setProducts(result.products)).catch(() => showToast('Reload the storefront to refresh products.'));
+            }
+          }}
         />
       )}
 
