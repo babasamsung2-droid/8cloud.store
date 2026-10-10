@@ -4,14 +4,16 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { SecurePurchasesModal } from './components/SecurePurchasesModal';
+import { commerceRequest } from './services/commerce';
 import { Header } from './components/Header';
+import { CommerceHero } from './components/CommerceHero';
 import { Hero } from './components/Hero';
 import { CategoryGrid } from './components/CategoryGrid';
 import { ProductGrid } from './components/ProductGrid';
 import { ProductDetailModal } from './components/ProductDetailModal';
 import { CartDrawer } from './components/CartDrawer';
 import { CheckoutModal } from './components/CheckoutModal';
-import { DigitalDeliveryModal } from './components/DigitalDeliveryModal';
 import { LicenseKeyValidatorModal } from './components/LicenseKeyValidatorModal';
 import { MyVaultModal } from './components/MyVaultModal';
 import { AuthModal } from './components/AuthModal';
@@ -20,21 +22,17 @@ import { SEOHead } from './components/SEOHead';
 import { Footer } from './components/Footer';
 import { PRODUCTS } from './data/products';
 import { Product, CartItem, Order, CategoryId, CurrencyCode, User, StoreSettings } from './types';
-import { getStoredLicenses, saveLicense } from './utils/licenseGenerator';
 import { getInitialCurrency, fetchGeoCurrency, CURRENCY_STORAGE_KEY } from './utils/currency';
 import { Check, ShoppingBag, TriangleAlert } from 'lucide-react';
 import { STORE_RUNTIME_CONFIG } from './config/storeMode';
 import { sanitizeStoreSettings } from './config/storeSettings';
-import { auth, fbSignOut, db } from './firebase';
+import { auth, fbSignOut } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
 import { secureAdminMiddleware, verifyAdminIdentity, registerAdminUid } from './utils/adminSecurity';
 
 const PRODUCTS_STORAGE_KEY = '8cloud_admin_products_v1';
 const CART_STORAGE_KEY = '8cloud_cart_v1';
-const ORDERS_STORAGE_KEY = '8cloud_orders_v1';
 const WISHLIST_STORAGE_KEY = '8cloud_wishlist_v1';
-const USER_STORAGE_KEY = '8cloud_current_user_v1';
 const SETTINGS_STORAGE_KEY = '8cloud_store_settings_v1';
 
 const DEFAULT_SETTINGS: StoreSettings = {
@@ -47,50 +45,9 @@ const DEFAULT_SETTINGS: StoreSettings = {
   storeCurrency: 'INR',
 };
 
-// Seed initial sample order for first-time visitors
-const INITIAL_DEMO_ORDER: Order = {
-  id: '8CLD-940219',
-  date: '2026-03-01T10:00:00Z',
-  customerName: 'Alex Vance',
-  customerEmail: 'alex.vance@example.com',
-  items: [
-    {
-      product: PRODUCTS[0], // CloudShield VPN Enterprise
-      quantity: 1,
-    },
-  ],
-  subtotal: 49,
-  discount: 0,
-  total: 49,
-  currency: 'USD',
-  paymentMethod: 'upi',
-  transactionRef: 'TXN_NPCI_89218A',
-  licenses: [
-    {
-      productId: PRODUCTS[0].id,
-      productName: PRODUCTS[0].name,
-      key: '8CLD-VPN9-A8F2-77Q1-X99M',
-      issuedAt: '2026-03-01T10:00:00Z',
-      expiresAt: '2027-03-01T10:00:00Z',
-      maxDevices: 5,
-      activeDevices: 2,
-      status: 'active',
-      activatedMachines: ['MacBook Pro 16" (M3 Max)', 'Arch Linux Workstation'],
-    },
-  ],
-  downloadPayloads: [
-    {
-      productId: PRODUCTS[0].id,
-      productName: PRODUCTS[0].name,
-      fileName: 'cloudshield-vpn-v4.8.zip',
-      fileSize: '84 MB',
-      downloadUrl: 'https://cdn.8cloud.store/downloads/8CLD-940219/cloudshield.zip',
-      expiresHours: 72,
-    },
-  ],
-};
-
 export default function App() {
+  const [isSecurePurchasesOpen, setIsSecurePurchasesOpen] = useState(false);
+  const [catalogReady, setCatalogReady] = useState(!STORE_RUNTIME_CONFIG.checkoutEnabled);
   const [selectedCategory, setSelectedCategory] = useState<CategoryId | 'all'>('all');
   
   // Location-based Currency state: Defaults to INR in India / fallback, or USD ($) for other countries
@@ -121,15 +78,20 @@ export default function App() {
     }
   };
   
-  // Dynamic Products Catalog state (persisted so admin updates stay live across refreshes)
+  // Real storefront products come exclusively from the trusted server catalog.
   const [products, setProducts] = useState<Product[]>(() => {
+    if (STORE_RUNTIME_CONFIG.checkoutEnabled) return [];
     try {
       const saved = localStorage.getItem(PRODUCTS_STORAGE_KEY);
       return saved ? JSON.parse(saved) : PRODUCTS;
-    } catch {
-      return PRODUCTS;
-    }
+    } catch { return PRODUCTS; }
   });
+  useEffect(() => {
+    if (!STORE_RUNTIME_CONFIG.checkoutEnabled) return;
+    commerceRequest<{ products: Product[] }>('/catalog', undefined, false)
+      .then(value => { setProducts(value.products); setCatalogReady(true); })
+      .catch(() => { setCatalogReady(false); setProducts([]); });
+  }, []);
 
   // Cart state
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -140,17 +102,18 @@ export default function App() {
       return [];
     }
   });
+  useEffect(() => {
+    if (!STORE_RUNTIME_CONFIG.checkoutEnabled || !catalogReady) return;
+    setCart(previous => previous.flatMap(item => {
+      const product = products.find(product => product.id === item.product?.id);
+      return product ? [{ product, quantity: 1 }] : [];
+    }));
+  }, [products, catalogReady]);
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   // Orders state
-  const [orders, setOrders] = useState<Order[]>(() => {
-    try {
-      const saved = localStorage.getItem(ORDERS_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  // Orders must eventually be loaded from the authenticated server, never global browser storage.
+  const [orders, setOrders] = useState<Order[]>([]);
 
   // Wishlist state (persisted)
   const [wishlistIds, setWishlistIds] = useState<string[]>(() => {
@@ -162,23 +125,9 @@ export default function App() {
     }
   });
 
-  // User Authentication state (persisted, zero demo accounts)
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    try {
-      const saved = localStorage.getItem(USER_STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.email === 'alex.vance@example.com' || parsed?.name === 'Alex Vance') {
-          localStorage.removeItem(USER_STORAGE_KEY);
-          return null;
-        }
-        return parsed;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  });
+  // User authentication state
+  // Firebase is the only authority for sign-in; never restore identity from browser storage.
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isAdminLoginMode, setIsAdminLoginMode] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -203,7 +152,6 @@ export default function App() {
     discount: number;
     coupon?: string;
   } | null>(null);
-  const [latestDeliveredOrder, setLatestDeliveredOrder] = useState<Order | null>(null);
   const [isValidatorOpen, setIsValidatorOpen] = useState(false);
   const [validatorInitialKey, setValidatorInitialKey] = useState<string>('');
   const [isVaultOpen, setIsVaultOpen] = useState(false);
@@ -292,15 +240,6 @@ export default function App() {
     }
   }, [cart]);
 
-  // Persist orders to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
-    } catch (e) {
-      console.error('Failed to save orders to localStorage', e);
-    }
-  }, [orders]);
-
   // Persist wishlist to localStorage
   useEffect(() => {
     try {
@@ -313,9 +252,16 @@ export default function App() {
   // Sync Firebase Authentication state
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+      if (!fbUser || !fbUser.email) {
+        setCurrentUser(null);
+        setOrders([]);
+        setIsAdminOpen(false);
+        setIsSecurePurchasesOpen(false);
+        return;
+      }
       if (fbUser && fbUser.email) {
         const cleanEmail = fbUser.email.toLowerCase().trim();
-        const isAdmin = cleanEmail === 'babasamsung2@gmail.com';
+        const isAdmin = fbUser.emailVerified && cleanEmail === 'babasamsung2@gmail.com';
         const displayName = fbUser.displayName || (cleanEmail ? cleanEmail.split('@')[0] : 'Member');
         const formattedName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
 
@@ -331,25 +277,12 @@ export default function App() {
         };
         setCurrentUser(verifiedUser);
         if (isAdmin) {
-          registerAdminUid(fbUser.uid, cleanEmail);
+          registerAdminUid(fbUser.uid, cleanEmail).catch(() => console.warn('Admin registry sync failed.'));
         }
       }
     });
     return () => unsubscribe();
   }, []);
-
-  // Persist current user to localStorage
-  useEffect(() => {
-    try {
-      if (currentUser) {
-        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(currentUser));
-      } else {
-        localStorage.removeItem(USER_STORAGE_KEY);
-      }
-    } catch (e) {
-      console.error('Failed to save user to localStorage', e);
-    }
-  }, [currentUser]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -410,6 +343,7 @@ export default function App() {
 
   // Admin Product Management Handlers (UID-guarded via secureAdminMiddleware)
   const handleSaveProduct = (updatedProduct: Product) => {
+    if (STORE_RUNTIME_CONFIG.checkoutEnabled) { showToast('Publish real products using the server catalog import tool.'); return; }
     const guard = secureAdminMiddleware(
       currentUser,
       'Save Product',
@@ -432,6 +366,7 @@ export default function App() {
   };
 
   const handleDeleteProduct = (productId: string) => {
+    if (STORE_RUNTIME_CONFIG.checkoutEnabled) { showToast('Manage real products in the server catalog.'); return; }
     const guard = secureAdminMiddleware(
       currentUser,
       'Delete Product',
@@ -448,6 +383,7 @@ export default function App() {
   };
 
   const handleResetCatalog = () => {
+    if (STORE_RUNTIME_CONFIG.checkoutEnabled) return;
     const guard = secureAdminMiddleware(
       currentUser,
       'Reset Catalog',
@@ -487,6 +423,7 @@ export default function App() {
   // Add to cart handler
   const handleAddToCart = (product: Product) => {
     setCart((prev) => {
+      if (STORE_RUNTIME_CONFIG.checkoutEnabled && prev.some(item => item.product.id === product.id)) return prev;
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
         return prev.map((item) =>
@@ -500,6 +437,7 @@ export default function App() {
 
   // Update quantity in cart
   const handleUpdateQuantity = (productId: string, delta: number) => {
+    if (STORE_RUNTIME_CONFIG.checkoutEnabled && delta > 0) return;
     setCart((prev) => {
       return prev
         .map((item) => {
@@ -520,6 +458,10 @@ export default function App() {
 
   // Quick Buy handler (direct checkout for 1 item)
   const handleQuickBuy = (product: Product) => {
+    if (!STORE_RUNTIME_CONFIG.checkoutEnabled) {
+      showToast('Purchases are not available yet. No payment will be collected.');
+      return;
+    }
     if (!currentUser) {
       setPendingCheckout({ items: [{ product, quantity: 1 }], discount: 0 });
       setIsAuthOpen(true);
@@ -533,6 +475,10 @@ export default function App() {
 
   // Proceed to checkout from cart drawer
   const handleProceedToCheckoutFromCart = (discountAmount: number, couponCode?: string) => {
+    if (!STORE_RUNTIME_CONFIG.checkoutEnabled) {
+      showToast('Purchases are not available yet. No payment will be collected.');
+      return;
+    }
     if (!currentUser) {
       setPendingCheckout({ items: cart, discount: discountAmount, coupon: couponCode });
       setIsCartOpen(false);
@@ -544,44 +490,6 @@ export default function App() {
     setCheckoutItems(cart);
     setCheckoutDiscount(discountAmount);
     setCheckoutCoupon(couponCode);
-  };
-
-  // On order completed
-  const handleOrderCompleted = (completedOrder: Order) => {
-    // Add to orders list
-    setOrders((prev) => [completedOrder, ...prev]);
-
-    // Save generated licenses to license store
-    completedOrder.licenses.forEach((lic) => {
-      saveLicense(lic);
-    });
-
-    // Save to Firestore if user is authenticated
-    if (currentUser?.id) {
-      setDoc(doc(db, 'users', currentUser.id, 'orders', completedOrder.id), {
-        id: completedOrder.id,
-        userId: currentUser.id,
-        customerEmail: completedOrder.customerEmail,
-        customerName: completedOrder.customerName,
-        total: completedOrder.total,
-        currency: completedOrder.currency,
-        paymentMethod: completedOrder.paymentMethod,
-        transactionRef: completedOrder.transactionRef,
-        fulfillmentStatus: completedOrder.fulfillmentStatus || 'delivered',
-        createdAt: new Date().toISOString(),
-      }).catch((err) => {
-        console.warn('Could not sync order to Firestore:', err);
-      });
-    }
-
-    // If checkout was from entire cart, clear the cart
-    if (checkoutItems === cart) {
-      setCart([]);
-    }
-
-    // Close checkout and trigger digital delivery screen
-    setCheckoutItems(null);
-    setLatestDeliveredOrder(completedOrder);
   };
 
   // Open key validator with pre-filled key
@@ -618,8 +526,13 @@ export default function App() {
         currency={currency}
       />
 
+      <SecurePurchasesModal isOpen={isSecurePurchasesOpen} onClose={() => setIsSecurePurchasesOpen(false)} userId={currentUser?.id} onSignIn={() => { setIsSecurePurchasesOpen(false); setIsAuthOpen(true); }} />
+      {STORE_RUNTIME_CONFIG.mode === 'test' && <div className="bg-amber-950 p-2 text-center text-sm text-amber-200">Test store — no real payments</div>}
+      {!catalogReady && <div role="alert" className="p-3 text-center text-rose-300">The product catalog is unavailable. Please try again later.</div>}
+
       {/* Top sticky glassmorphic navigation */}
       <Header
+        products={products.filter((p) => p.status !== 'draft')}
         selectedCategory={selectedCategory}
         onSelectCategory={(cat) => {
           setSelectedCategory(cat);
@@ -636,8 +549,8 @@ export default function App() {
           setIsValidatorOpen(true);
         }}
         onOpenVault={() => {
-          setVaultInitialTab('orders');
-          setIsVaultOpen(true);
+          if (STORE_RUNTIME_CONFIG.checkoutEnabled) setIsSecurePurchasesOpen(true);
+          else { setVaultInitialTab('orders'); setIsVaultOpen(true); }
         }}
         onSelectProduct={(p) => setSelectedProduct(p)}
         activeOrdersCount={orders.length}
@@ -649,13 +562,13 @@ export default function App() {
         currentUser={currentUser}
         onOpenLogin={() => setIsAuthOpen(true)}
         onOpenAdmin={() => setIsAdminOpen(true)}
-        isAdminVisible={currentUser?.email?.trim().toLowerCase() === 'babasamsung2@gmail.com'}
+        isAdminVisible={verifyAdminIdentity(currentUser).authorized}
       />
 
       {/* Main Content Area */}
       <main className="flex-1">
         {/* Hero Section */}
-        <Hero
+        {STORE_RUNTIME_CONFIG.checkoutEnabled ? <CommerceHero onShopNow={scrollToCatalog} /> : <Hero
           onShopNow={scrollToCatalog}
           onOpenValidator={() => {
             setValidatorInitialKey('');
@@ -665,10 +578,11 @@ export default function App() {
             setSelectedCategory(cat);
             scrollToCatalog();
           }}
-        />
+        />}
 
         {/* Niche Categories Interactive Grid */}
         <CategoryGrid
+          products={products}
           selectedCategory={selectedCategory}
           onSelectCategory={(cat) => {
             setSelectedCategory(cat);
@@ -743,20 +657,14 @@ export default function App() {
         currency={currency}
         discountAmount={checkoutDiscount}
         couponCode={checkoutCoupon}
-        onOrderCompleted={handleOrderCompleted}
+        onPurchaseCompleted={() => {
+          const purchasedIds = new Set((checkoutItems || []).map(item => item.product.id));
+          setCart(prev => prev.filter(item => !purchasedIds.has(item.product.id)));
+          setCheckoutItems(null);
+          setIsSecurePurchasesOpen(true);
+        }}
         currentUser={currentUser}
         onOpenLogin={() => setIsAuthOpen(true)}
-      />
-
-      {/* Digital Delivery Screen (Immediate License Keys, Downloads, Manifest) */}
-      <DigitalDeliveryModal
-        order={latestDeliveredOrder}
-        onClose={() => setLatestDeliveredOrder(null)}
-        onOpenVault={() => {
-          setVaultInitialTab('orders');
-          setIsVaultOpen(true);
-        }}
-        onOpenValidatorWithKey={handleOpenValidatorWithKey}
       />
 
       {/* License Key Verification Engine Modal */}
@@ -800,7 +708,7 @@ export default function App() {
       />
 
       {/* Store Administrator Dashboard & Product Management (Strictly babasamsung2@gmail.com) */}
-      {isAdminOpen && currentUser?.email?.toLowerCase().trim() === 'babasamsung2@gmail.com' && (
+      {isAdminOpen && verifyAdminIdentity(currentUser).authorized && (
         <AdminPanel
           isOpen={isAdminOpen}
           onClose={() => setIsAdminOpen(false)}

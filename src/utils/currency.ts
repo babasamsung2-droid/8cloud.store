@@ -139,7 +139,7 @@ export function formatPrice(amountUSD: number, currency: CurrencyCode = 'INR'): 
   const converted = amountUSD * target.rate;
   
   if (currency === 'INR') {
-    return `${target.symbol}${Math.round(converted).toLocaleString('en-IN')}`;
+    return `${target.symbol}${converted.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
   return `${target.symbol}${converted.toFixed(2)}`;
 }

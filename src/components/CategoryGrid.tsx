@@ -10,14 +10,15 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { CATEGORIES } from '../data/products';
-import { CategoryId } from '../types';
+import { CategoryId, Product } from '../types';
 
 interface CategoryGridProps {
+  products: Product[];
   selectedCategory: CategoryId | 'all';
   onSelectCategory: (id: CategoryId) => void;
 }
 
-export const CategoryGrid: React.FC<CategoryGridProps> = ({ selectedCategory, onSelectCategory }) => {
+export const CategoryGrid: React.FC<CategoryGridProps> = ({ products, selectedCategory, onSelectCategory }) => {
   const getIcon = (name: string, color: string) => {
     const isCyan = color === 'cyan';
     const colorClass = isCyan ? 'text-cyan-400' : 'text-purple-400';
@@ -93,7 +94,7 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({ selectedCategory, on
                       {getIcon(cat.iconName, cat.accentColor)}
                     </div>
                     <span className="text-[11px] font-mono text-zinc-500 group-hover:text-zinc-300 transition-colors">
-                      {cat.count} assets
+                      {products.filter((product) => product.status !== 'draft' && product.categoryId === cat.id).length} assets
                     </span>
                   </div>
 

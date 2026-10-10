@@ -10,7 +10,14 @@ import {
   QrCode, 
   Lock 
 } from 'lucide-react';
-import { FAQ_ITEMS } from '../data/products';
+import { STORE_RUNTIME_CONFIG } from '../config/storeMode';
+const FAQ_ITEMS = [
+  { question: 'How do I receive my ebook or digital product?', answer: 'Sign in and complete checkout. After the server confirms captured payment, open My Purchases and request your download. If payment confirmation is delayed, use Check payment status.' },
+  { question: 'Can I download my purchase again?', answer: 'Active purchases remain in your account. Each request creates a link valid for 60 seconds, with a limit of 10 link requests per file per hour. Refunded or revoked purchases no longer grant new download access.' },
+  { question: 'Which file formats will I receive?', answer: 'Check the product description and included files before buying. Each product lists its actual file formats, contents and permitted use.' },
+  { question: 'What payment methods are available?', answer: 'Available methods appear in Razorpay checkout. The final charge is shown in INR before payment. Demo mode does not accept purchases.' },
+  { question: 'What is the refund policy?', answer: 'Refund terms will be published before live sales begin. Contact support@8cloud.store for purchase assistance.' },
+];
 import { CategoryId, User } from '../types';
 
 interface FooterProps {
@@ -29,24 +36,15 @@ export const Footer: React.FC<FooterProps> = ({
   onOpenAdminLogin 
 }) => {
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
-  const [newsletterEmail, setNewsletterEmail] = useState('');
-  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
-
   const toggleFaq = (index: number) => {
     setOpenFaqIndex(openFaqIndex === index ? null : index);
-  };
-
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newsletterEmail.trim()) return;
-    setNewsletterSubscribed(true);
   };
 
   return (
     <footer className="mt-20 border-t border-white/10 bg-zinc-950/90 relative z-10">
       
       {/* FAQ Accordion Section */}
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-16 pb-12">
+      <section id="faq" className="scroll-mt-24 max-w-4xl mx-auto px-4 sm:px-6 pt-16 pb-12">
         <div className="text-center space-y-2 mb-10">
           <div className="text-xs font-mono text-cyan-400 tracking-wider uppercase">
             Clarity & Transparency
@@ -55,7 +53,7 @@ export const Footer: React.FC<FooterProps> = ({
             Frequently Asked Questions
           </h2>
           <p className="text-xs sm:text-sm text-zinc-400">
-            Instant digital delivery, cryptographic licensing guarantees, and refund protocols.
+            Payment confirmation, file formats and download access.
           </p>
         </div>
 
@@ -69,6 +67,8 @@ export const Footer: React.FC<FooterProps> = ({
               >
                 <button
                   onClick={() => toggleFaq(idx)}
+                  aria-expanded={isOpen}
+                  aria-controls={`faq-answer-${idx}`}
                   className="w-full p-4 sm:p-5 text-left flex items-center justify-between gap-4 cursor-pointer hover:bg-zinc-900/40 transition-colors"
                 >
                   <span className="text-sm font-semibold text-white">
@@ -82,7 +82,7 @@ export const Footer: React.FC<FooterProps> = ({
                 </button>
 
                 {isOpen && (
-                  <div className="px-5 pb-5 text-xs text-zinc-300 leading-relaxed border-t border-white/5 pt-3 animate-in fade-in duration-150">
+                  <div id={`faq-answer-${idx}`} className="px-5 pb-5 text-xs text-zinc-300 leading-relaxed border-t border-white/5 pt-3 animate-in fade-in duration-150">
                     {item.answer}
                   </div>
                 )}
@@ -97,46 +97,17 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center space-y-4">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/50 border border-cyan-400/30 text-cyan-300 text-xs font-mono">
             <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            <span>INSTANT $10 STORE CREDIT VOUCHER</span>
+            <span>STORE UPDATES — COMING SOON</span>
           </div>
 
           <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
             Get Drop Alerts & Weekly Cryptographic Key Deals
           </h3>
           <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
-            Join 32,000+ developers, AI engineers, and creators. We never send spam.
+            Email subscriptions are not enabled yet. Your address will not be saved.
           </p>
 
-          {newsletterSubscribed ? (
-            <div className="max-w-md mx-auto p-4 rounded-xl bg-cyan-950/40 border border-cyan-400/40 text-xs text-cyan-300 space-y-1">
-              <div className="flex items-center justify-center gap-1.5 font-bold">
-                <Check className="w-4 h-4 text-emerald-400" />
-                <span>You are in! Use code at checkout:</span>
-              </div>
-              <div className="font-mono text-sm font-bold text-white tracking-wider">
-                WELCOME10
-              </div>
-              <div className="text-[10px] text-zinc-400">10% discount automatically ready for your bag.</div>
-            </div>
-          ) : (
-            <form onSubmit={handleNewsletterSubmit} className="max-w-md mx-auto flex gap-2">
-              <input
-                type="email"
-                required
-                value={newsletterEmail}
-                onChange={(e) => setNewsletterEmail(e.target.value)}
-                placeholder="Enter your email address..."
-                className="flex-1 bg-zinc-950 border border-white/10 text-xs text-white px-4 py-3 rounded-xl focus:outline-none focus:border-cyan-400"
-              />
-              <button
-                type="submit"
-                className="px-5 py-3 bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-zinc-950 text-xs font-bold rounded-xl transition-all shadow-md shadow-cyan-500/20 cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-              >
-                <span>Unlock Voucher</span>
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          )}
+          <p className="text-xs text-amber-200">Newsletter signup and promotional offers will be available after launch.</p>
         </div>
       </section>
 
@@ -160,7 +131,7 @@ export const Footer: React.FC<FooterProps> = ({
             </a>
 
             <p className="text-xs text-zinc-400 leading-relaxed max-w-sm">
-              The premier digital asset destination for developers, AI builders, and creators. Automated 0-second delivery for Software Keys, Evaluated Prompts, Creator Suites, and Modern Code Starters.
+              Ebooks, guides and useful digital resources. Confirmed purchases are available in your account.
             </p>
 
             <div className="flex items-center gap-4 text-xs font-mono text-zinc-400">
@@ -172,7 +143,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <span>Verify a Key</span>
               </button>
               <span>·</span>
-              <span className="text-emerald-400">Status: All Systems Operational</span>
+              <span className="text-emerald-400">{STORE_RUNTIME_CONFIG.mode === 'production' ? 'Store open' : STORE_RUNTIME_CONFIG.mode === 'test' ? 'Test store' : 'Preview — Payments Disabled'}</span>
             </div>
           </div>
 
@@ -250,23 +221,19 @@ export const Footer: React.FC<FooterProps> = ({
             <h4 className="text-xs font-mono text-white tracking-wider uppercase">Connect</h4>
             <ul className="space-y-2 text-xs text-zinc-400">
               <li>
-                <a href="https://x.com" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-300 transition-colors">
-                  X (formerly Twitter) · @8cloudstore
-                </a>
+                <span>X — coming soon</span>
               </li>
               <li>
-                <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-300 transition-colors">
+                <a href="https://github.com/babasamsung2-droid/8cloud.store" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-300 transition-colors">
                   GitHub Developers
                 </a>
               </li>
               <li>
-                <a href="https://discord.com" target="_blank" rel="noopener noreferrer" className="hover:text-cyan-300 transition-colors">
-                  Discord Community (18k Members)
-                </a>
+                <span>Discord — coming soon</span>
               </li>
               <li>
                 <a href="mailto:support@8cloud.store" className="hover:text-cyan-300 transition-colors">
-                  24/7 Support: support@8cloud.store
+                  Contact: support@8cloud.store
                 </a>
               </li>
             </ul>
@@ -278,7 +245,7 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="mt-12 pt-8 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-500">
           <div className="flex flex-wrap items-center gap-3">
             <span>
-              © {new Date().getFullYear()} 8cloud.store Inc. All rights reserved. Zero-latency digital delivery.
+              © {new Date().getFullYear()} 8cloud.store. All rights reserved. Store preview.
             </span>
             {/* Admin button strictly visible only when logged in as babasamsung2@gmail.com */}
             {currentUser?.email?.toLowerCase().trim() === 'babasamsung2@gmail.com' && onOpenAdmin && (

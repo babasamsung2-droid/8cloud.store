@@ -1,4 +1,4 @@
-export type StoreMode = 'demo' | 'production';
+export type StoreMode = 'demo' | 'test' | 'production';
 
 export interface StoreRuntimeConfig {
   mode: StoreMode;
@@ -13,7 +13,7 @@ function isSecureHttpUrl(value: string | undefined): value is string {
 
   try {
     const url = new URL(value);
-    return url.protocol === 'https:';
+    return url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash;
   } catch {
     return false;
   }
@@ -25,15 +25,11 @@ export function getStoreRuntimeConfig(env: RuntimeEnv): StoreRuntimeConfig {
     : '';
   const hasSecureCheckoutApi = isSecureHttpUrl(checkoutApiUrl);
 
-  // Safety gate: this must remain false until checkout actually creates and
-  // verifies Razorpay orders through the trusted server API.
-  const serverCheckoutImplemented = false;
-  const checkoutEnabled = serverCheckoutImplemented &&
-    env.VITE_STORE_MODE === 'production' &&
-    hasSecureCheckoutApi;
+  const checkoutEnabled = env.VITE_ENABLE_CHECKOUT === 'true' &&
+    (env.VITE_STORE_MODE === 'test' || env.VITE_STORE_MODE === 'production') && hasSecureCheckoutApi;
 
   return {
-    mode: checkoutEnabled ? 'production' : 'demo',
+    mode: checkoutEnabled ? (env.VITE_STORE_MODE === 'test' ? 'test' : 'production') : 'demo',
     checkoutApiUrl: hasSecureCheckoutApi ? checkoutApiUrl : null,
     checkoutEnabled,
   };

@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { CartItem, CurrencyCode, User } from '../types';
 import { formatPrice } from '../utils/currency';
+import { STORE_RUNTIME_CONFIG } from '../config/storeMode';
 import { ProductArtwork } from './ProductArtwork';
 
 interface CartDrawerProps {
@@ -45,10 +46,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   if (!isOpen) return null;
 
   const rawSubtotal = items.reduce((sum, item) => sum + item.product.priceUSD * item.quantity, 0);
-  const discountAmount = (rawSubtotal * discountPercent) / 100;
+  const discountAmount = STORE_RUNTIME_CONFIG.checkoutEnabled ? 0 : (rawSubtotal * discountPercent) / 100;
   const finalTotal = Math.max(0, rawSubtotal - discountAmount);
 
   const handleApplyPromo = () => {
+    if (STORE_RUNTIME_CONFIG.checkoutEnabled) { setPromoError('Promotions are not enabled for this store.'); return; }
     const clean = promoCode.trim().toUpperCase();
     if (!clean) return;
 

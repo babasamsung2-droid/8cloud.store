@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, 
-  ShoppingBag, 
-  KeyRound, 
-  Layers, 
-  X, 
+import {
+  Search,
+  ShoppingBag,
+  KeyRound,
+  Layers,
+  X,
   ArrowRight,
   Menu,
   ShieldCheck,
@@ -15,9 +15,10 @@ import {
 } from 'lucide-react';
 import { CurrencyCode, Product, CategoryId, User } from '../types';
 import { CURRENCY_RATES, formatPrice } from '../utils/currency';
-import { PRODUCTS } from '../data/products';
+
 
 interface HeaderProps {
+  products: Product[];
   selectedCategory: CategoryId | 'all';
   onSelectCategory: (cat: CategoryId | 'all') => void;
   currency: CurrencyCode;
@@ -37,6 +38,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  products,
   selectedCategory,
   onSelectCategory,
   currency,
@@ -64,7 +66,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Filter products for instant autocomplete
   const searchResults = searchQuery.trim().length > 1
-    ? PRODUCTS.filter(p => 
+    ? products.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -99,12 +101,12 @@ export const Header: React.FC<HeaderProps> = ({
       <aside aria-label="Announcement" className="h-8 bg-zinc-950 border-b border-white/5 flex items-center justify-between px-4 sm:px-8 text-[11px] text-zinc-400">
         <div className="flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          <span className="text-zinc-300 font-medium">⚡ 0-Second Instant Digital Delivery</span>
+          <span className="text-zinc-300 font-medium">Ebooks & Digital Products</span>
           <span className="hidden sm:inline text-zinc-600">·</span>
-          <span className="hidden sm:inline text-zinc-500">Global Cloud CDN Fulfillment</span>
+          <span className="hidden sm:inline text-zinc-500">Downloads in your account</span>
         </div>
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={onOpenValidator}
             className="flex items-center gap-1.5 text-zinc-400 hover:text-cyan-400 transition-colors cursor-pointer"
           >
@@ -112,18 +114,18 @@ export const Header: React.FC<HeaderProps> = ({
             <span>Verify License Key</span>
           </button>
           <span className="text-zinc-700 hidden sm:inline">|</span>
-          <span className="hidden sm:inline text-zinc-400">100% Activation Guarantee</span>
+          <span className="hidden sm:inline text-zinc-400">Payment before access</span>
         </div>
       </aside>
 
       {/* Main Glassmorphic Sticky Header - follows strict Top Bar Contract */}
       <header className="sticky top-0 z-40 w-full glass-panel border-b border-white/10 transition-all duration-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          
+
           {/* Zone 1: Single text element wordmark */}
           <div className="flex items-center gap-3">
-            <a 
-              href="#" 
+            <a
+              href="#"
               onClick={(e) => { e.preventDefault(); onSelectCategory('all'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
               className="group flex items-center gap-2 text-xl font-bold tracking-tight text-white hover:text-cyan-400 transition-colors"
             >
@@ -141,8 +143,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onSelectCategory('software-keys')}
               className={`transition-colors cursor-pointer py-1 ${
-                selectedCategory === 'software-keys' 
-                  ? 'text-cyan-400 border-b border-cyan-400' 
+                selectedCategory === 'software-keys'
+                  ? 'text-cyan-400 border-b border-cyan-400'
                   : 'text-zinc-400 hover:text-zinc-100'
               }`}
             >
@@ -151,8 +153,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onSelectCategory('ai-prompts')}
               className={`transition-colors cursor-pointer py-1 ${
-                selectedCategory === 'ai-prompts' 
-                  ? 'text-purple-400 border-b border-purple-400' 
+                selectedCategory === 'ai-prompts'
+                  ? 'text-purple-400 border-b border-purple-400'
                   : 'text-zinc-400 hover:text-zinc-100'
               }`}
             >
@@ -161,8 +163,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onSelectCategory('social-media')}
               className={`transition-colors cursor-pointer py-1 ${
-                selectedCategory === 'social-media' 
-                  ? 'text-cyan-400 border-b border-cyan-400' 
+                selectedCategory === 'social-media'
+                  ? 'text-cyan-400 border-b border-cyan-400'
                   : 'text-zinc-400 hover:text-zinc-100'
               }`}
             >
@@ -171,8 +173,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onSelectCategory('elearning')}
               className={`transition-colors cursor-pointer py-1 ${
-                selectedCategory === 'elearning' 
-                  ? 'text-purple-400 border-b border-purple-400' 
+                selectedCategory === 'elearning'
+                  ? 'text-purple-400 border-b border-purple-400'
                   : 'text-zinc-400 hover:text-zinc-100'
               }`}
             >
@@ -181,8 +183,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onSelectCategory('ebooks')}
               className={`transition-colors cursor-pointer py-1 ${
-                selectedCategory === 'ebooks' 
-                  ? 'text-purple-400 border-b border-purple-400' 
+                selectedCategory === 'ebooks'
+                  ? 'text-purple-400 border-b border-purple-400'
                   : 'text-zinc-400 hover:text-zinc-100'
               }`}
             >
@@ -191,8 +193,8 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               onClick={() => onSelectCategory('web-assets')}
               className={`transition-colors cursor-pointer py-1 ${
-                selectedCategory === 'web-assets' 
-                  ? 'text-cyan-400 border-b border-cyan-400' 
+                selectedCategory === 'web-assets'
+                  ? 'text-cyan-400 border-b border-cyan-400'
                   : 'text-zinc-400 hover:text-zinc-100'
               }`}
             >
@@ -259,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 onClick={onOpenLogin}
                 className="flex items-center gap-2 px-3.5 py-1.5 bg-gradient-to-r from-cyan-500/20 via-zinc-900 to-blue-500/20 hover:from-cyan-500/30 hover:to-blue-500/30 text-white border border-cyan-400/40 hover:border-cyan-400 rounded-xl text-xs font-bold transition-all shadow-md shadow-cyan-500/10 active:scale-95 cursor-pointer"
-                title="Sign In with ID & Password or 1-Click Gmail"
+                title="Sign in securely with Google"
               >
                 {/* Google G mini-badge */}
                 <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center shrink-0">
@@ -376,7 +378,7 @@ export const Header: React.FC<HeaderProps> = ({
                 Web Development Assets
               </button>
             </div>
-            
+
             {/* Admin Panel for Mobile - ONLY if Baba Samsung is logged in */}
             {isBabaAdmin && onOpenAdmin && (
               <button
@@ -402,11 +404,11 @@ export const Header: React.FC<HeaderProps> = ({
                   <span>{currentUser.name.split(' ')[0]}</span>
                 </button>
               ) : (
-                <button 
-                  onClick={() => { 
+                <button
+                  onClick={() => {
                     setMobileMenuOpen(false);
                     onOpenLogin?.();
-                  }} 
+                  }}
                   className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-500/20 via-zinc-900 to-blue-500/20 text-white font-bold text-xs flex items-center gap-2 border border-cyan-400/40 cursor-pointer active:scale-95 shadow-sm"
                 >
                   <div className="w-4 h-4 rounded-full bg-white flex items-center justify-center shrink-0">
@@ -455,7 +457,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <X className="w-4 h-4" />
                 </button>
               )}
-              <button 
+              <button
                 onClick={() => setIsSearchOpen(false)}
                 className="text-xs text-zinc-400 hover:text-zinc-200 px-2 py-1 bg-zinc-800 rounded border border-white/5"
               >

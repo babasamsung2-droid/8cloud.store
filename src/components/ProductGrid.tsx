@@ -43,6 +43,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   const filteredProducts = useMemo(() => {
     return products
       .filter((p) => {
+        if (p.status === 'draft') return false;
         let matchesCat = false;
         if (selectedCategory === 'all') {
           matchesCat = true;

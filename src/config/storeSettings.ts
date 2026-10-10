@@ -1,4 +1,4 @@
-import { CurrencyCode, StoreSettings } from '../types';
+import type { CurrencyCode, StoreSettings } from '../types';
 
 const CURRENCIES: CurrencyCode[] = ['INR', 'USD', 'EUR', 'GBP'];
 

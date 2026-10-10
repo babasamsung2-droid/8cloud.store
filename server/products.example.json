@@ -1,0 +1,26 @@
+[
+  {
+    "id": "your-ebook",
+    "active": false,
+    "kind": "download",
+    "name": "Your Ebook Title",
+    "amount": 29900,
+    "files": [{ "id": "pdf", "name": "your-ebook.pdf", "objectPath": "private-products/your-ebook/v1.pdf", "generation": "REPLACE_WITH_OBJECT_GENERATION" }],
+    "display": {
+      "tagline": "Describe the result your book helps readers achieve",
+      "description": "Replace with an accurate description of your ebook.",
+      "longDescription": "Include the contents, intended audience and what the reader receives.",
+      "categoryId": "ebooks",
+      "categoryName": "Ebooks",
+      "deliveryFormat": "PDF",
+      "downloadSize": "Replace with actual size",
+      "version": "1.0",
+      "licenseType": "Personal use",
+      "features": ["Replace with a real feature"],
+      "includedFiles": ["your-ebook.pdf"],
+      "tags": ["ebook"],
+      "gradientTheme": "from-cyan-600 to-blue-700",
+      "iconType": "BookOpen"
+    }
+  }
+]

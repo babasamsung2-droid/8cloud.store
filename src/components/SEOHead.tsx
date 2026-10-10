@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 import { CategoryId, Product, CurrencyCode } from '../types';
+import { STORE_RUNTIME_CONFIG } from '../config/storeMode';
+import { CURRENCY_RATES } from '../utils/currency';
 import { CATEGORIES } from '../data/products';
 
 interface SEOHeadProps {
@@ -58,6 +60,7 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
       script.textContent = JSON.stringify(schemaObj, null, 2);
     };
 
+    document.querySelectorAll('meta[property^="product:price:"]').forEach((node) => node.remove());
     // Default Fallback Store Data
     let title = '8cloud.store — Level Up Your Digital Life | Instant Digital Assets';
     let description = 'Ultra-modern, futuristic digital products store for instant-delivery Software Keys, AI Prompts, Creator Kits, Courses, and Web Dev Assets.';
@@ -71,12 +74,8 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
       'url': origin,
       'description': description,
       'currenciesAccepted': 'USD, INR, EUR, GBP',
-      'paymentAccepted': 'Razorpay, UPI, Credit Card, Google Pay, NetBanking, Cryptocurrency',
-      'potentialAction': {
-        '@type': 'SearchAction',
-        'target': `${origin}/?search={search_term_string}`,
-        'query-input': 'required name=search_term_string',
-      },
+      'paymentAccepted': STORE_RUNTIME_CONFIG.checkoutEnabled ? 'Razorpay' : 'None — preview store',
+
     };
 
     // CASE 1: Individual Product is Selected (Modal open / detail view)
@@ -103,27 +102,23 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
         'offers': {
           '@type': 'Offer',
           'url': canonicalUrl,
-          'priceCurrency': 'USD',
-          'price': selectedProduct.priceUSD.toString(),
+          'priceCurrency': currency,
+          'price': (selectedProduct.priceUSD * CURRENCY_RATES[currency].rate).toFixed(2),
           'priceValidUntil': '2027-12-31',
           'itemCondition': 'https://schema.org/NewCondition',
-          'availability': (selectedProduct.stock && selectedProduct.stock > 0)
-            ? 'https://schema.org/InStock'
+          'availability': !STORE_RUNTIME_CONFIG.checkoutEnabled || selectedProduct.status === 'draft' || selectedProduct.stock === 0
+            ? 'https://schema.org/OutOfStock'
             : 'https://schema.org/InStock',
           'seller': {
             '@type': 'Organization',
             'name': '8cloud.store',
           },
         },
-        'aggregateRating': {
-          '@type': 'AggregateRating',
-          'ratingValue': (selectedProduct.rating || 4.9).toString(),
-          'reviewCount': (selectedProduct.reviewsCount || 48).toString(),
-        },
+
       };
 
       // Set product-specific price meta tags
-      setMetaTag('property', 'product:price:amount', selectedProduct.priceUSD.toString());
+      setMetaTag('property', 'product:price:amount', (selectedProduct.priceUSD * CURRENCY_RATES[currency].rate).toFixed(2));
       setMetaTag('property', 'product:price:currency', currency);
     } 
     // CASE 2: Category is Filtered (and no product modal is active)
@@ -152,6 +147,8 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
         };
       }
     }
+
+    setMetaTag('name', 'robots', STORE_RUNTIME_CONFIG.checkoutEnabled ? 'index, follow' : 'noindex, nofollow');
 
     // Apply Page Title
     document.title = title;
