@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Cloud, X } from 'lucide-react';
 import { User, StoreSettings } from '../types';
-import { auth, googleProvider, signInWithPopup, db } from '../firebase';
+import { auth, googleProvider, signInWithPopup, db, firestoreProfilesEnabled } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { registerAdminUid } from '../utils/adminSecurity';
 
@@ -61,6 +61,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       };
 
       try {
+        if (firestoreProfilesEnabled) {
         await setDoc(
           doc(db, 'users', fbUser.uid),
           {
@@ -76,6 +77,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
         if (isAdmin) {
           await registerAdminUid(fbUser.uid, cleanEmail);
+        }
         }
       } catch (dbErr) {
         console.warn('Firestore user profile sync warning:', dbErr);

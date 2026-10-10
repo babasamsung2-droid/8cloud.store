@@ -39,6 +39,7 @@ export function normalizeProduct(input) {
 export function createAdmin({ repo, storage, paymentMode, enabled }) {
   return {
     async dashboard() {
+      await storage.checkHealth?.();
       const [products, orders] = await Promise.all([repo.adminProducts(), repo.adminOrders()]);
       return { products, orders: orders.map(order => ({ ...publicOrder(order), uid: order.uid })),
         configuration: { paymentMode, paymentsEnabled: enabled, privateStorageVerified: true } };

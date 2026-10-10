@@ -1,6 +1,6 @@
 # 8cloud.store: secure ebook and digital-product sales
 
-This source adds a Firebase + Razorpay commerce flow to the existing store. It is configured as a demo by default. Cloud service setup is documented in `deploy/README.md` and has not yet been verified in your account. Do not switch to live keys until sandbox integration tests pass with your own accounts and files.
+The selected deployment uses Supabase Free for the API, database and private files, Firebase for Google sign-in, and Razorpay for payments. It remains a non-selling demo until account configuration and sandbox integration tests are complete. Start with [the Supabase setup guide](supabase/README.md). The Cloud Run/GCS deployment in `deploy/README.md` is an alternative that requires Google Cloud billing; do not run it for the no-billing setup.
 
 ## What is implemented
 
@@ -11,10 +11,10 @@ This source adds a Firebase + Razorpay commerce flow to the existing store. It i
 - Signed raw-body Razorpay webhooks. Duplicate capture notifications do not create additional orders or restore refunded/revoked access.
 - Persistent purchase history and buyer ownership checks for every file request.
 - Recovery through My Purchases → Check payment status, using the provider's order payment records when callbacks/webhooks are missed.
-- Private, immutable file generations and 60-second signed download URLs. The file is not bundled with the website or stored under a public download URL.
+- Private files and 60-second signed download URLs. Supabase uploads use unique, non-overwriting paths and metadata consistency checks; GCS uses native object generations. Keep purchased originals available. The file is not bundled with the website or stored under a public download URL.
 - New links blocked for refunded/revoked orders. Gateway refund state is checked before every link even when its webhook is delayed. Any partial refund conservatively revokes all downloads for the order; item-level partial refunds are not yet supported.
 - Atomic limit of 10 link requests per file/order/hour, plus 30 authenticated API requests per customer/minute.
-- Server-backed admin panel for ebook drafts, INR pricing, private PDF/EPUB/ZIP uploads, publishing/unpublishing and recent orders. Every admin route requires a verified Firebase `storeAdmin` claim. Product writes use revision checks and audit records.
+- Server-backed admin panel for ebook drafts, INR pricing, private PDF/EPUB/ZIP uploads, publishing/unpublishing and recent orders. Supabase admin routes require the configured owner Firebase UID plus verified owner email; the Node/Firebase deployment requires a verified `storeAdmin` claim. Product writes use revision checks and audit records.
 - Cloud Run bootstrap script, secret-safe configuration checker and trusted operator admin-claim command. See `deploy/README.md`.
 
 ## How the buyer flow works
@@ -52,6 +52,8 @@ npm start
 Use Node 22 or newer. Run commands from their indicated directory. Do not upload `.env`, service-account JSON, product originals or private catalog import files to GitHub. Never put payment secrets in a `VITE_` variable.
 
 ## Configure private storage first
+
+The following GCS/Firestore instructions apply only to the alternative Node/Cloud Run deployment. For the selected Supabase deployment, use `supabase/README.md` and the SQL migration instead.
 
 Prefer a dedicated Google Cloud Storage bucket exclusively for paid originals. Do not change an existing shared bucket's permissions without understanding the other applications using it.
 
@@ -122,7 +124,7 @@ The checkout public key comes from the server. Customer payment information is e
 
 ## Deploy and verify
 
-Deploy the frontend build to your frontend host and `server/` as a separate HTTPS Node service. A Dockerfile is supplied for Cloud Run or another container host; no infrastructure has been created by this task.
+Deploy the frontend build to your frontend host and the commerce API as a Supabase Edge Function, following `supabase/README.md`. A Dockerfile is also supplied for the alternative Node service. The Supabase database and private bucket were created in project `hkwyajwnkgyymzbqgeqk`; frontend sign-in and payment integration still require configuration and live checks.
 
 Use secret management for keys, an attached runtime service identity for Firebase/storage, restricted CORS, and an edge rate limit for unauthenticated catalog/webhook traffic. The included authenticated rate limits do not replace an edge WAF or denial-of-service controls. The webhook endpoint must remain reachable without a customer login.
 
@@ -166,3 +168,12 @@ The backend totals use the configured product amount as the final charge. There 
 ## Admin update validation
 
 The server-backed admin panel replaces the browser-only editor in the application. It requires an API connection even while the storefront is in demo mode. Drafts, files and order records are not faked locally. Uploads are capped at 25 MB each and 10 files per product; basic format checks are not antivirus scanning. Published originals and sold file generations must be retained.
+
+## Supabase migration validation (10 October 2026)
+
+- 33 backend tests and 6 frontend tests passed; TypeScript and production build passed.
+- 23 commerce/Edge tests passed in Deno 2.9.6; the source entrypoint passed `deno check`.
+- The SQL migration passed local PostgreSQL/PGlite checks for RLS/privileges, revision conflicts, refund replay protection, transactional limits and private storage.
+- The live project returned PASS for the four checks in `supabase/verify.sql`.
+- The deployed function booted and returned the application's expected 401 response to an unauthenticated dashboard test.
+- Firebase sign-in, owner access, real file delivery and Razorpay sandbox transactions are still pending account configuration. The current frontend bundle still has its original demo fallback until the new Firebase app settings are supplied.

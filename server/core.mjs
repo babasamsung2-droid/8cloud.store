@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 export class ApiError extends Error {
   constructor(status, message) { super(message); this.status = status; }

@@ -1,0 +1,6 @@
+project_id = "eightcloud-store"
+
+[functions.commerce]
+# Firebase JWTs are verified by the handler; Razorpay webhooks use their HMAC signature.
+verify_jwt = false
+entrypoint = "./functions/commerce/index.ts"

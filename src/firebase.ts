@@ -3,10 +3,21 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signOut as fbSignOut } fr
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
+const firebaseOverrides = {
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+};
+const hasOverride = Object.values(firebaseOverrides).some(Boolean);
+if (hasOverride && !Object.values(firebaseOverrides).every(value => typeof value === 'string' && value.trim())) {
+  throw new Error('Configure all four VITE_FIREBASE_* app settings for the selected project.');
+}
+const app = initializeApp(hasOverride ? firebaseOverrides : firebaseConfig);
+export const firestoreProfilesEnabled = import.meta.env.VITE_FIRESTORE_PROFILES_ENABLED !== 'false';
 
 // CRITICAL: Must use firestoreDatabaseId
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, import.meta.env.VITE_FIRESTORE_DATABASE_ID || (hasOverride ? '(default)' : firebaseConfig.firestoreDatabaseId));
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
@@ -68,6 +79,6 @@ async function testFirestoreConnection() {
     }
   }
 }
-testFirestoreConnection();
+if (firestoreProfilesEnabled) testFirestoreConnection();
 
 export { signInWithPopup, fbSignOut };
