@@ -23,12 +23,12 @@ export async function createFirebaseAdapters(env) {
       async adminOrders() {
         return (await orders.orderBy('createdAt', 'desc').limit(100).get()).docs.map(doc => doc.data());
       },
-      async saveProduct(product, revision, uid) {
+      async saveProduct(product, revision, uid, expectedExists) {
         const { id, ...value } = product;
         const ref = db.collection('commerceProducts').doc(id);
         await db.runTransaction(async tx => {
           const existing = await tx.get(ref);
-          if ((existing.data()?.revision ?? null) !== revision) throw new ApiError(409, 'Product changed in another session. Reload before saving.');
+          if (existing.exists !== expectedExists || (existing.data()?.revision ?? null) !== revision) throw new ApiError(409, 'Product already exists or changed in another session. Reload before saving.');
           const nextRevision = randomUUID();
           tx.set(ref, { ...value, revision: nextRevision, updatedAt: new Date().toISOString(), updatedBy: uid });
           tx.create(db.collection('commerceAudit').doc(), { action: 'product.save', productId: id, active: value.active, uid, revision: nextRevision, at: new Date().toISOString() });

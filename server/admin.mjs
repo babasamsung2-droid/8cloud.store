@@ -46,7 +46,7 @@ export function createAdmin({ repo, storage, paymentMode, enabled }) {
     async save(user, input) {
       const product = normalizeProduct(input);
       for (const file of product.files) await storage.assertPrivate(file);
-      await repo.saveProduct(product, input.revision ?? null, user.uid);
+      await repo.saveProduct(product, input.revision ?? null, user.uid, input.existing === true);
       return { saved: true };
     },
     async upload(user, name, bytes) {

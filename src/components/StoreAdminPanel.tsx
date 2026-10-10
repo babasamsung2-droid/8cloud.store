@@ -41,7 +41,7 @@ export function StoreAdminPanel({ onClose, onCatalogChanged }: { onClose: () => 
     event.preventDefault(); if (!editing) return;
     setBusy(true); setError(''); setNotice('');
     try {
-      await commerceRequest('/admin/products', editing);
+      await commerceRequest('/admin/products', { ...editing, existing });
       setEditing(null); setNotice('Product saved to the server.');
       await refresh(); onCatalogChanged();
     } catch (e) { setError(e instanceof Error ? e.message : 'Save failed.'); }
