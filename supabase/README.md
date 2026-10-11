@@ -2,7 +2,7 @@
 
 Selected project: `8cloud-store` (`hkwyajwnkgyymzbqgeqk`, Sydney). This setup does not require running the Google Cloud billing/bootstrap script. Keep the Supabase organization on Free and monitor its current storage, database, function and egress limits in the dashboard. Free hosting limits and inactivity pauses make this a starting deployment, not a guaranteed-availability service.
 
-Deployment checkpoint (10 October 2026): schema/private bucket applied and verified; `commerce` function deployed; project ID, storefront origin, test mode and disabled checkout settings saved. Firebase web configuration and owner UID, Razorpay secrets, frontend deployment and service integration tests are still pending. The dashboard's legacy JWT check remains ON pending approval to use the function's custom verification.
+Deployment checkpoint (10 October 2026): schema/private bucket applied and verified; `commerce` function deployed; project ID, storefront origin, test mode and disabled checkout settings saved. Firebase web configuration and owner UID, Razorpay secrets, frontend deployment and service integration tests are still pending. On 11 October 2026, the owner's approved legacy JWT setting was switched OFF for commerce only. Live checks returned 200 for health and the empty catalog, and 401 for unauthenticated admin/orders. Razorpay credentials, Firebase web API key and owner UID remain absent; payments remain disabled.
 
 ## Database and private originals
 
